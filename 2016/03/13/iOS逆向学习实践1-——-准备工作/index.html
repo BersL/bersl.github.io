@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="description" content="艰难越狱之路决定学习iOS逆向，于是等9.2越狱等了个把月仍然没有消息，买来了书，有已经跃跃欲试了，于是弄到了一台8.4系统的4S，成功越狱，进Cydia，准备了会，自动重启，随后……无限重启ORZ、、试过各种办法无济于事、只能进DFU刷系统了，然而8.4的验证早已关闭[sigh]……不甘心！想到同学有一台换下来的5，也是8.4的系统，便开心地借来用几天[doge脸]。到手，越狱之、这次总算成功了">
+<meta property="og:type" content="article">
+<meta property="og:title" content="iOS逆向学习实践1 —— 准备工作">
+<meta property="og:url" content="http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/index.html">
+<meta property="og:site_name" content="Bers的个人博客">
+<meta property="og:description" content="艰难越狱之路决定学习iOS逆向，于是等9.2越狱等了个把月仍然没有消息，买来了书，有已经跃跃欲试了，于是弄到了一台8.4系统的4S，成功越狱，进Cydia，准备了会，自动重启，随后……无限重启ORZ、、试过各种办法无济于事、只能进DFU刷系统了，然而8.4的验证早已关闭[sigh]……不甘心！想到同学有一台换下来的5，也是8.4的系统，便开心地借来用几天[doge脸]。到手，越狱之、这次总算成功了">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2016-03-13T04:48:35.000Z">
+<meta property="article:modified_time" content="2020-07-07T15:19:49.676Z">
+<meta property="article:author" content="Bers Liu">
+<meta property="article:tag" content="逆向">
+<meta property="article:tag" content="iOS">
+<meta name="twitter:card" content="summary">
+    
+    
+        
+          
+              <link rel="shortcut icon" href="/images/favicon.ico">
+          
+        
+        
+          
+            <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+          
+        
+        
+          
+            <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+          
+        
+    
+    <!-- title -->
+    <title>iOS逆向学习实践1 —— 准备工作</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+      
+<link rel="stylesheet" href="/css/rtl.css">
+
+    
+    <!-- rss -->
+    
+    
+<meta name="generator" content="Hexo 4.2.1"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+         
+          <li><a href="/">首页</a></li>
+         
+          <li><a href="/about/">关于</a></li>
+         
+          <li><a href="/archives/">归档</a></li>
+         
+          <li><a href="https://github.com/bersl" target="_blank" rel="noopener">项目</a></li>
+        
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" href="/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" href="/2016/01/02/%E7%AE%80%E6%98%93%E7%9A%84%E8%87%AA%E5%8A%A8%E5%9B%9E%E6%94%B6%E6%B1%A0%E5%AE%9E%E7%8E%B0/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" href="#"><i class="fas fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" href="http://www.facebook.com/sharer.php?u=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/" target="_blank" rel="noopener"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://twitter.com/share?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&text=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.linkedin.com/shareArticle?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://pinterest.com/pin/create/bookmarklet/?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&is_video=false&description=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=iOS逆向学习实践1 —— 准备工作&body=Check out this article: http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/"><i class="fas fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://getpocket.com/save?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://reddit.com/submit?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.stumbleupon.com/submit?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://digg.com/submit?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.tumblr.com/share/link?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&name=iOS逆向学习实践1 —— 准备工作&description=" target="_blank" rel="noopener"><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://news.ycombinator.com/submitlink?u=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&t=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#艰难越狱之路"><span class="toc-number">1.</span> <span class="toc-text">艰难越狱之路</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#工具准备"><span class="toc-number">2.</span> <span class="toc-text">工具准备</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#理论知识准备"><span class="toc-number">3.</span> <span class="toc-text">理论知识准备</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        iOS逆向学习实践1 —— 准备工作
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Bers的个人博客</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2016-03-13T04:48:35.000Z" itemprop="datePublished">2016-03-13</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link" href="/tags/iOS/" rel="tag">iOS</a>, <a class="tag-link" href="/tags/%E9%80%86%E5%90%91/" rel="tag">逆向</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <h2 id="艰难越狱之路"><a href="#艰难越狱之路" class="headerlink" title="艰难越狱之路"></a>艰难越狱之路</h2><p>决定学习iOS逆向，于是等9.2越狱等了个把月仍然没有消息，买来了书，有已经跃跃欲试了，于是弄到了一台8.4系统的4S，成功越狱，进Cydia，准备了会，自动重启，随后……无限重启ORZ、、试过各种办法无济于事、只能进DFU刷系统了，然而8.4的验证早已关闭[sigh]……<br/><br>不甘心！想到同学有一台换下来的5，也是8.4的系统，便开心地借来用几天[doge脸]。到手，越狱之、这次总算成功了。</p>
+<hr>
+<h2 id="工具准备"><a href="#工具准备" class="headerlink" title="工具准备"></a>工具准备</h2><p><strong>OS X</strong></p>
+<ul>
+<li><a href="https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/networkpx/class-dump-z" target="_blank" rel="noopener">class-dump-z</a></li>
+<li>Hopper Disassembler（也可以用IDA）</li>
+<li><a href="http://revealapp.com" target="_blank" rel="noopener">Reveal</a></li>
+<li><a href="https://github.com/theos/theos" target="_blank" rel="noopener">Theos</a><br>安装 -&gt; <a href="https://github.com/theos/theos/wiki/Installation" target="_blank" rel="noopener">Installation-theos</a><br>ps：thoes已经由社区接管，目前网上大多数教程还是原来的theos的：<a href="https://github.com/DHowett/theos" target="_blank" rel="noopener">https://github.com/DHowett/theos</a> (会自动跳转)</li>
+</ul>
+<p><strong>iOS</strong><br>以下工具均可在Cydia中获取</p>
+<ul>
+<li>adv-cmds</li>
+<li>Apple File Conduit “2”</li>
+<li>OpenSSH </li>
+<li>CydiaSubtrate</li>
+<li>Reveal Loader (配合Reveal)</li>
+<li>Cycript (简直神器！)</li>
+<li>dumpdecrypted</li>
+</ul>
+<h2 id="理论知识准备"><a href="#理论知识准备" class="headerlink" title="理论知识准备"></a>理论知识准备</h2><p><strong>ARM汇编</strong><br/><br>入门： <a href="http://www.cocoachina.com/industry/20130624/6463.html" target="_blank" rel="noopener">iOS汇编教程</a></p>
+<p><strong>lldb的使用</strong><br/><br>可查看objccn的译文：<a href="http://objccn.io/issue-19-2/" target="_blank" rel="noopener">与调试器共舞 - LLDB 的华尔兹</a></p>
+<p><del>当然iOS的相关知识肯定不用说了</del></p>
+
+  </div>
+</article>
+
+    <div class="blog-post-comments">
+        <div id="disqus_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">首页</a></li>
+         
+          <li><a href="/about/">关于</a></li>
+         
+          <li><a href="/archives/">归档</a></li>
+         
+          <li><a href="https://github.com/bersl" target="_blank" rel="noopener">项目</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#艰难越狱之路"><span class="toc-number">1.</span> <span class="toc-text">艰难越狱之路</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#工具准备"><span class="toc-number">2.</span> <span class="toc-text">工具准备</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#理论知识准备"><span class="toc-number">3.</span> <span class="toc-text">理论知识准备</span></a></li></ol>
+    </div>
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" href="http://www.facebook.com/sharer.php?u=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/" target="_blank" rel="noopener"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://twitter.com/share?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&text=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.linkedin.com/shareArticle?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://pinterest.com/pin/create/bookmarklet/?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&is_video=false&description=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=iOS逆向学习实践1 —— 准备工作&body=Check out this article: http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/"><i class="fas fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://getpocket.com/save?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://reddit.com/submit?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.stumbleupon.com/submit?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://digg.com/submit?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&title=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.tumblr.com/share/link?url=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&name=iOS逆向学习实践1 —— 准备工作&description=" target="_blank" rel="noopener"><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://news.ycombinator.com/submitlink?u=http://www.bersl.com/2016/03/13/iOS%E9%80%86%E5%90%91%E5%AD%A6%E4%B9%A0%E5%AE%9E%E8%B7%B51-%E2%80%94%E2%80%94-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C/&t=iOS逆向学习实践1 —— 准备工作" target="_blank" rel="noopener"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fas fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fas fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2020
+    Bers Liu
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+         
+          <li><a href="/">首页</a></li>
+         
+          <li><a href="/about/">关于</a></li>
+         
+          <li><a href="/archives/">归档</a></li>
+         
+          <li><a href="https://github.com/bersl" target="_blank" rel="noopener">项目</a></li>
+        
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+
+<link rel="stylesheet" href="/lib/justified-gallery/css/justifiedGallery.min.css">
+
+
+    <!-- jquery -->
+
+<script src="/lib/jquery/jquery.min.js"></script>
+
+
+<script src="/lib/justified-gallery/js/jquery.justifiedGallery.min.js"></script>
+
+<!-- clipboard -->
+
+  
+<script src="/lib/clipboard/clipboard.min.js"></script>
+
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+    <script type="text/javascript">
+        (function(i,s,o,g,r,a,m) {i['GoogleAnalyticsObject']=r;i[r]=i[r]||function() {
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+        ga('create', 'UA-167200849-1', 'auto');
+        ga('send', 'pageview');
+    </script>
+
+<!-- Baidu Analytics -->
+
+<!-- Disqus Comments -->
+
+    <script type="text/javascript">
+        var disqus_shortname = 'bers-blog';
+
+        (function(){
+            var dsq = document.createElement('script');
+            dsq.type = 'text/javascript';
+            dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        }());
+    </script>
+
+
+</body>
+</html>
