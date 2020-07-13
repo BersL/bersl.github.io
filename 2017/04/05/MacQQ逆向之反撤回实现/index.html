@@ -9,20 +9,20 @@
     <meta name="description" content="前言作为Mac用户，每当水群的时候免疫别人撤回消息时总是感觉非常美滋滋，然而QQ For Mac 5.5.0版本更新之后支持撤回了，对于爱水群的我可以说是非常不爽了！于是自己动手，通过逆向QQ找到撤回消息的逻辑，搞定之。 寻找UI撤回方法初步思路是从UI入手，找到撤回消息时，界面部分用于撤回一条消息并显示提示信息被调用的方法。尝试搜索关键词“revoke”，果然看到了很多相关的方法： 上次逆向找Q">
 <meta property="og:type" content="article">
 <meta property="og:title" content="MacQQ逆向之反撤回实现">
-<meta property="og:url" content="http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/index.html">
+<meta property="og:url" content="http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/index.html">
 <meta property="og:site_name" content="Bers的个人博客">
 <meta property="og:description" content="前言作为Mac用户，每当水群的时候免疫别人撤回消息时总是感觉非常美滋滋，然而QQ For Mac 5.5.0版本更新之后支持撤回了，对于爱水群的我可以说是非常不爽了！于是自己动手，通过逆向QQ找到撤回消息的逻辑，搞定之。 寻找UI撤回方法初步思路是从UI入手，找到撤回消息时，界面部分用于撤回一条消息并显示提示信息被调用的方法。尝试搜索关键词“revoke”，果然看到了很多相关的方法： 上次逆向找Q">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://www.bersl.com/images/qqantirevoking/img1.jpg">
-<meta property="og:image" content="http://www.bersl.com/images/qqantirevoking/img2.jpg">
-<meta property="og:image" content="http://www.bersl.com/images/qqantirevoking/img3.jpg">
+<meta property="og:image" content="http://bersl.github.io/images/qqantirevoking/img1.jpg">
+<meta property="og:image" content="http://bersl.github.io/images/qqantirevoking/img2.jpg">
+<meta property="og:image" content="http://bersl.github.io/images/qqantirevoking/img3.jpg">
 <meta property="article:published_time" content="2017-04-04T19:27:07.000Z">
 <meta property="article:modified_time" content="2020-07-07T15:19:49.676Z">
 <meta property="article:author" content="Bers Liu">
 <meta property="article:tag" content="macOS">
 <meta property="article:tag" content="逆向">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://www.bersl.com/images/qqantirevoking/img1.jpg">
+<meta name="twitter:image" content="http://bersl.github.io/images/qqantirevoking/img1.jpg">
     
     
         
@@ -98,17 +98,17 @@
     <br/>
     <div id="share" style="display: none">
       <ul>
-  <li><a class="icon" href="http://www.facebook.com/sharer.php?u=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/" target="_blank" rel="noopener"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://twitter.com/share?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&text=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://www.linkedin.com/shareArticle?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://pinterest.com/pin/create/bookmarklet/?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&is_video=false&description=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="mailto:?subject=MacQQ逆向之反撤回实现&body=Check out this article: http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/"><i class="fas fa-envelope " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://getpocket.com/save?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://reddit.com/submit?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://www.stumbleupon.com/submit?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://digg.com/submit?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://www.tumblr.com/share/link?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&name=MacQQ逆向之反撤回实现&description=" target="_blank" rel="noopener"><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://news.ycombinator.com/submitlink?u=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&t=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/" target="_blank" rel="noopener"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://twitter.com/share?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&text=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&is_video=false&description=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=MacQQ逆向之反撤回实现&body=Check out this article: http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/"><i class="fas fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://getpocket.com/save?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://reddit.com/submit?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://digg.com/submit?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&name=MacQQ逆向之反撤回实现&description=" target="_blank" rel="noopener"><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&t=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
 </ul>
 
     </div>
@@ -238,17 +238,17 @@
 
     <div id="share-footer" style="display: none">
       <ul>
-  <li><a class="icon" href="http://www.facebook.com/sharer.php?u=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/" target="_blank" rel="noopener"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://twitter.com/share?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&text=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://www.linkedin.com/shareArticle?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://pinterest.com/pin/create/bookmarklet/?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&is_video=false&description=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="mailto:?subject=MacQQ逆向之反撤回实现&body=Check out this article: http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/"><i class="fas fa-envelope fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://getpocket.com/save?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://reddit.com/submit?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://www.stumbleupon.com/submit?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://digg.com/submit?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="http://www.tumblr.com/share/link?url=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&name=MacQQ逆向之反撤回实现&description=" target="_blank" rel="noopener"><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
-  <li><a class="icon" href="https://news.ycombinator.com/submitlink?u=http://www.bersl.com/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&t=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/" target="_blank" rel="noopener"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://twitter.com/share?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&text=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&is_video=false&description=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=MacQQ逆向之反撤回实现&body=Check out this article: http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/"><i class="fas fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://getpocket.com/save?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://reddit.com/submit?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://digg.com/submit?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&title=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&name=MacQQ逆向之反撤回实现&description=" target="_blank" rel="noopener"><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/2017/04/05/MacQQ%E9%80%86%E5%90%91%E4%B9%8B%E5%8F%8D%E6%92%A4%E5%9B%9E%E5%AE%9E%E7%8E%B0/&t=MacQQ逆向之反撤回实现" target="_blank" rel="noopener"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
 </ul>
 
     </div>
