@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="前言 作为iOS开发者，日常开发涉及到并发编程时，与我们打交道最多的是GCD API，它引入了一种基于队列的并发编程模型，极大地方便了开发者编写并发代码，可以不用直接接触线程、互斥锁这些概念。 GCD是由libdispatch库实现的纯C库，苹果已经将其作为Swift语言的一部分开源，见swift-corelibs-libdispatch，在其他非Darwin内核（如linux）它提供了纯用户态的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="多核并行基础 —— 从线程同步到多核CPU">
+<meta property="og:url" content="http://bersl.github.io/parallel_fundamental/index.html">
+<meta property="og:site_name" content="Bers的个人博客">
+<meta property="og:description" content="前言 作为iOS开发者，日常开发涉及到并发编程时，与我们打交道最多的是GCD API，它引入了一种基于队列的并发编程模型，极大地方便了开发者编写并发代码，可以不用直接接触线程、互斥锁这些概念。 GCD是由libdispatch库实现的纯C库，苹果已经将其作为Swift语言的一部分开源，见swift-corelibs-libdispatch，在其他非Darwin内核（如linux）它提供了纯用户态的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/thread_sync.png">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/SMP.png">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/ARMCacheArrangament.png">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/MESIState.png">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/cache_coherence.png">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/caches_with_invalidate_queue.png">
+<meta property="og:image" content="http://bersl.github.io/images/parallel_fundamental/one_way_barrier.png">
+<meta property="article:published_time" content="2020-05-20T03:35:00.000Z">
+<meta property="article:modified_time" content="2023-08-16T10:14:22.069Z">
+<meta property="article:author" content="Bers Liu">
+<meta property="article:tag" content="操作系统">
+<meta property="article:tag" content="GCD">
+<meta property="article:tag" content="CPU">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://bersl.github.io/images/parallel_fundamental/thread_sync.png">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+        
+      
+    
+    <!-- title -->
+    <title>多核并行基础 —— 从线程同步到多核CPU</title>
+    <!-- async scripts -->
+    <!-- Google Analytics -->
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-167200849-1"></script>
+  <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'UA-167200849-1');
+  </script>
+
+
+    <!-- Umami Analytics -->
+
+
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="顶部" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fa-solid fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="上一篇" href="/libcxx-sharedptr/"><i class="fa-solid fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="下一篇" href="/arm64_varadic_args/"><i class="fa-solid fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="返回顶部" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" aria-label="分享文章" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/parallel_fundamental/"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/parallel_fundamental/&text=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/parallel_fundamental/&is_video=false&description=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=多核并行基础 —— 从线程同步到多核CPU&body=Check out this article: http://bersl.github.io/parallel_fundamental/"><i class="fa-solid fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/parallel_fundamental/&name=多核并行基础 —— 从线程同步到多核CPU&description="><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/parallel_fundamental/&t=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    
+    
+      <div id="toc">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BA%BF%E7%A8%8B%E5%90%8C%E6%AD%A5"><span class="toc-number">2.</span> <span class="toc-text">线程同步</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%87%AA%E6%97%8B%E9%94%81"><span class="toc-number">3.</span> <span class="toc-text">自旋锁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C-%E6%8C%87%E4%BB%A4"><span class="toc-number">4.</span> <span class="toc-text">原子操作&#x2F;指令</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="toc-number">4.1.</span> <span class="toc-text">缓存一致性</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#cache%E7%AE%80%E4%BB%8B"><span class="toc-number">4.1.1.</span> <span class="toc-text">cache简介</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E8%AF%BB%E5%86%99%E7%AD%96%E7%95%A5"><span class="toc-number">4.1.2.</span> <span class="toc-text">读写策略</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#MESI%E5%8D%8F%E8%AE%AE"><span class="toc-number">4.1.3.</span> <span class="toc-text">MESI协议</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">原子操作实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%94%81%E6%80%BB%E7%BA%BF"><span class="toc-number">4.2.1.</span> <span class="toc-text">锁总线</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#LL-SC"><span class="toc-number">4.2.2.</span> <span class="toc-text">LL&#x2F;SC</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8C%87%E4%BB%A4%E9%87%8D%E6%8E%92"><span class="toc-number">5.</span> <span class="toc-text">指令重排</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.</span> <span class="toc-text">内存一致性模型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%BA%E5%BA%8F%E4%B8%80%E8%87%B4%E6%80%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.1.</span> <span class="toc-text">顺序一致性模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#TSO%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.2.</span> <span class="toc-text">TSO模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%B1%E4%B8%80%E8%87%B4%E6%80%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.3.</span> <span class="toc-text">弱一致性模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E5%B1%8F%E9%9A%9C"><span class="toc-number">7.</span> <span class="toc-text">内存屏障</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#X86"><span class="toc-number">7.1.</span> <span class="toc-text">X86</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#ARM"><span class="toc-number">7.2.</span> <span class="toc-text">ARM</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#C-11%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B"><span class="toc-number">8.</span> <span class="toc-text">C++11内存模型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E7%B1%BB%E5%9E%8B"><span class="toc-number">8.1.</span> <span class="toc-text">原子类型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E5%BA%8F"><span class="toc-number">8.2.</span> <span class="toc-text">内存序</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%8D%E7%9C%8B%E8%87%AA%E6%97%8B%E9%94%81"><span class="toc-number">9.</span> <span class="toc-text">再看自旋锁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%97%A0%E9%94%81%E7%BC%96%E7%A8%8B"><span class="toc-number">10.</span> <span class="toc-text">无锁编程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-number">11.</span> <span class="toc-text">参考资料</span></a></li></ol>
+      </div>
+    
+  </span>
+</div>
+
+    
+    <div class="content index py4 ">
+        
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle p-name" itemprop="name headline">
+        多核并行基础 —— 从线程同步到多核CPU
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span class="p-name" itemprop="name">Bers Liu</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2020-05-20T03:35:00.000Z" class="dt-published" itemprop="datePublished">2020-05-20</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fa-solid fa-tag"></i>
+        <a class="p-category" href="/tags/CPU/" rel="tag">CPU</a>, <a class="p-category" href="/tags/GCD/" rel="tag">GCD</a>, <a class="p-category" href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/" rel="tag">操作系统</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content e-content" itemprop="articleBody">
+    <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p> 作为iOS开发者，日常开发涉及到并发编程时，与我们打交道最多的是GCD API，它引入了一种基于队列的并发编程模型，极大地方便了开发者编写并发代码，可以不用直接接触线程、互斥锁这些概念。</p>
+<p>GCD是由libdispatch库实现的纯C库，苹果已经将其作为Swift语言的一部分开源，见<a target="_blank" rel="noopener" href="https://github.com/apple/swift-corelibs-libdispatch">swift-corelibs-libdispatch</a>，在其他非Darwin内核（如linux）它提供了纯用户态的实现。</p>
+<p>前段时间的开发工作涉及到了用C++编写跨平台运行的代码，当中牵涉到了编写跨平台多线程。没有了GCD优雅的API，需要自己管理线程，因此决定阅读libdispatch的源码，学习苹果是如何做的。</p>
+<p>阅读过程中发现其实现用到了大量技巧和优化，牵涉到的很多并行相关的知识点。虽然之前对这些概念如C++11内存模型有过了解，甚至在开发中也用到过，但是随着一系列对自己“为什么”的追问，发现还是有相当多没有真正理解的地方，并且也好奇底层的实现，遂展开对这些知识的学习。</p>
+<h2 id="线程同步"><a href="#线程同步" class="headerlink" title="线程同步"></a>线程同步</h2><p>让我们从熟悉多线程开始吧。</p>
+<p>日常的开发工作中，出于加快计算速度或是避免阻塞等目的，我们会经常使用到多线程技术，多个线程在并发地执行代码。如果这多个线程的工作毫无关联，那多线程不会给开发工作带来什么难点，然而事情不会有这么简单，多个线程共享同一地址空间，通过多线程完成任务时，我们往往会遇到对同一资源（地址）的交互，它有可能是一个线程的工作依赖另一个线程对这个资源进行修改，有可能是两个线程需要同时访问一个资源，这种交互之间的顺序需要通过线程同步来小心地保证。</p>
+<img src="/images/parallel_fundamental/thread_sync.png" alt="image-20200518023738305" style="zoom:50%;" />
+
+<p style="text-align: center">图0 - 一个线程同步示例</p>
+
+<p>在并发编程中，同步（Synchronization）机制用于判定两个或多个并发操作如何访问共享资源，保证程序执行的正确性。来看一个经典的场景：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 1</span></span><br><span class="line"><span class="type">int</span> <span class="built_in">array</span>[ARRAY_MAX_SIZE]; </span><br><span class="line"><span class="type">int</span> array_end = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">push_item</span><span class="params">(<span class="type">int</span> value)</span> &#123;</span><br><span class="line">  <span class="built_in">array</span>[array_end++] = value; <span class="comment">// 这里不考虑array越界问题</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里<code>array</code>和<code>array_end</code>就是共享资源。当有多个线程同时执行<code>push_item</code>的时候，得到的结果是未定义的。</p>
+<p>通常我们使用互斥体（mutex）来保证同一时刻只有一个线程进入临界区。如使用pthread的互斥锁：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 2</span></span><br><span class="line"><span class="type">int</span> <span class="built_in">array</span>[ARRAY_MAX_SIZE]; </span><br><span class="line"><span class="type">int</span> array_end = <span class="number">0</span>;</span><br><span class="line"><span class="type">pthread_mutex_t</span> lock; <span class="comment">// 在合适的地方被初始化</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">push_item</span><span class="params">(<span class="type">int</span> value)</span> &#123;</span><br><span class="line">  pthread_mutex_lock(&amp;lock);</span><br><span class="line">  <span class="built_in">array</span>[array_end++] = value; <span class="comment">// 临界区</span></span><br><span class="line">  pthread_mutex_unlock(&amp;lock);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>iOS中，我们可以使用GCD的串行队列作为同步手段，保证对共享变量访问操作的串行性。</p>
+<h2 id="自旋锁"><a href="#自旋锁" class="headerlink" title="自旋锁"></a>自旋锁</h2><p>在这个场景中，我们可以预知临界区的执行时间是非常短的，大家可能会想到的另一种同步方式是使用自旋锁。自旋锁会使线程进入忙等待，以避免线程上下文切换的开销。</p>
+<blockquote>
+<p><strong>关于自旋锁</strong></p>
+<p>这里引入自旋锁及其简化实现仅用于演示和引出下文，实际开发中在用户态使用忙等的自旋锁是<strong>不明智</strong>的。</p>
+<p>线程在忙等过程中可能发生时钟中断。此时当前线程的执行被内核抢占，调度到另一个线程也尝试获取锁，而前一个线程的锁并未释放，新的线程只能继续空转，造成CPU资源的浪费。</p>
+<p>并且因为基于QoS的线程调度机制，iOS中自旋锁还会有更严重的问题[1]，这里不展开讨论。</p>
+<p>总之对于常见的iOS开发中，我们其实不需要使用自旋锁，使用互斥锁&#x2F;信号量的开销并没有想象中大。即便<code>OSSpinLock</code>的实现也并没有简单地忙等，本文最后会对其实现简单分析。</p>
+</blockquote>
+<p>使用“自旋锁”的解决模式如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 3</span></span><br><span class="line"><span class="type">int</span> <span class="built_in">array</span>[ARRAY_MAX_SIZE]; </span><br><span class="line"><span class="type">int</span> array_end;</span><br><span class="line"><span class="type">int</span> flag;</span><br><span class="line"><span class="type">void</span> <span class="title function_">push_item</span><span class="params">(<span class="type">int</span> value)</span> &#123;</span><br><span class="line">  <span class="keyword">while</span>(flag) &#123;&#125; 	<span class="comment">// (1)</span></span><br><span class="line">  flag = <span class="number">1</span>;				<span class="comment">// (2)</span></span><br><span class="line">  <span class="built_in">array</span>[array_end++] = value;</span><br><span class="line">  flag = <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="原子操作-指令"><a href="#原子操作-指令" class="headerlink" title="原子操作&#x2F;指令"></a>原子操作&#x2F;指令</h2><blockquote>
+<p>以下的讨论我们只针对基于总线的SMP架构。</p>
+<p>SMP（Symmetric Multiple Processors，对称多处理器）是现代常见的对多处理器的组织方式。这种架构下每个CPU在运行时地位<strong>平等</strong>，共享所有资源。</p>
+<p>CPU之间通过共享的总线与内存相连，每个处理器对主存访问速度是相同，一次只能有一个CPU使用总线。</p>
+</blockquote>
+<img src="/images/parallel_fundamental/SMP.png" alt="image-20200511222002627" style="zoom:75%;" />
+
+<p style="text-align: center">图1 基于总线的SMP架构示意图</p>
+
+<p>上一部分自旋锁模式的实现，其实是有问题的。</p>
+<p>首先，对于<code>flag</code>的访问并不是<strong>原子的</strong>。</p>
+<p>“原子性”概念大家应该都有所了解，Objective-C中通过我们为对象的属性声明<code>atomic</code>来实现对它属性getter&#x2F;setter访问的线程安全（这里说的线程安全只针对访问属性动作）：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 4</span></span><br><span class="line"><span class="keyword">@property</span> (atomic, <span class="keyword">strong</span>) Object *object;</span><br><span class="line"><span class="comment">// 上述语句对应生成的getter/setter：</span></span><br><span class="line">- (Object *)object &#123;</span><br><span class="line">  <span class="keyword">@synchronized</span>(<span class="keyword">self</span>) &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line">- (<span class="type">void</span>)setObject:(Object *)object &#123;</span><br><span class="line">  <span class="keyword">@synchronized</span>(<span class="keyword">self</span>) &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>它保证了这样一件事：<code>@synchronized</code>包裹了getter&#x2F;setter的全部实现，一次只会有一个线程访问。这样每次对<code>object</code>的访问都是“完整的”，不会在执行的过程中被另一个线程修改。</p>
+<p>回到上面的自旋锁模型，对于<code>flag</code>的访问(1)和(2)中间可能会发生线程上下文切换，导致这个“锁”同时被多个线程获取，进入临界区。</p>
+<p>对于<code>flag</code>的 访问实际包含3步：加载值、修改值为1、将修改后的值写回内存，对应指令如下所示：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ldr     x0, [flag]</span><br><span class="line">mov     x0, 1</span><br><span class="line">str     x0, [flag]</span><br></pre></td></tr></table></figure>
+
+<p>我们希望这<strong>读、改、写</strong>三条指令能够被原子性地执行。“原子”这个词表达了两件事[3]：</p>
+<ol>
+<li>要么整个序列的指令都被完整执行，要么其中任何一条指令都不执行</li>
+<li>任何给定时间内，只有一条原子指令（无论来自哪个处理器）能够被执行</li>
+</ol>
+<p>对于单核处理器，可以通过关中断的方式保证CPU核心不中断指令序列的执行，但当面对多核处理器时，这种软件层面的手段就无效了——其他CPU核心也有可能对相关的内存空间发生同时访问。</p>
+<p>因此，硬件的支持是必要的，大部分现代处理器都支持将一个原子指令作为最低级的同步原语，不同的处理器支持的原子指令也不同，常见的有：</p>
+<p><em>test-and-set</em>：读取某个内存单元的值并与一个常数比较，如果相等则写入到这个内存单元。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">test_and_set</span><span class="params">(Mem, C, RegX)</span> &#123;</span><br><span class="line">  <span class="keyword">if</span> (*Mem == C) &#123;</span><br><span class="line">    *Mem = RegX;</span><br><span class="line">  &#125;</span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<p><em>compare-and-swap</em>：将某个内存单元的值与某寄存器X的值比较，如果相等则将另一个寄存器Y中的值写入这个内存单元，再将寄存器X的值写入寄存器Y。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">compare_and_swap</span><span class="params">(Mem, RegX, RegY)</span> &#123;</span><br><span class="line">  <span class="keyword">if</span> (*MeM == RegX) &#123;</span><br><span class="line">    *Mem = RegY;</span><br><span class="line">    RegY = RegX; <span class="comment">// 交换Mem指向内存和RegY的值</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>有了原子指令，接下来我们来探究它可以如何实现以在多核处理器保证原子性。</p>
+<p>保证原子性的关键问题在于访存，即其他CPU核心可能同时发生的访存冲突。并且，为了提高访存速度，现代处理器都采用了高速缓存甚至多层次存储器结构，以图1的架构为例，考虑一个CPU核心的RMW（读改写）操作：</p>
+<ol>
+<li>需要直接写到主存中的内存地址，此时其他CPU也刚好也要访问这块内存单元；</li>
+<li>直接修改了主存某个内存单元，而该单元正好在其他CPU的L1 cache中，其他CPU则直接通过cache访问该内存地址；</li>
+</ol>
+<p>问题2要解决的问题被称作<strong>缓存一致性</strong>问题。</p>
+<h3 id="缓存一致性"><a href="#缓存一致性" class="headerlink" title="缓存一致性"></a>缓存一致性</h3><h4 id="cache简介"><a href="#cache简介" class="headerlink" title="cache简介"></a>cache简介</h4><p>现代CPU的执行速度早已大大超过了其访存速度，访问一个主存中的数据需要上百个时钟周期，而存取操作是非常常见的指令，这种时延是不可接受的。因此，更小更快的存储设备被引入CPU，我们将其称作高速缓存（cache），它的访问时延可以低至个位数时钟周期。</p>
+<p>名为“缓存”，意味着它介于CPU和主存之间，被用作数据存取的缓冲区。如图2所示，现代CPU往往使用层级结构组织存储器系统，在CPU核心与内存之间引入了多层级的cache，每一层缓存着下一层的数据。</p>
+<img src="/images/parallel_fundamental/ARMCacheArrangament.png" alt="ARMv8-A缓存结构示意图" style="zoom:50%;" />
+
+<p style="text-align: center">图2 - 一种基本的cache组织结构，图源[4]</p>
+
+<p>cache数据的调入与换出以高速缓存行（cache line）为基本单位。一个cache line包含若干数据块，当我们访问一个内存地址时，它可以对应到一个cache line中的某个块，类似于表格中的单元格结构。</p>
+<p>多核处理器中往往一个CPU核心各自独占一个L1 cache（甚至一个L2 cache），如图2，L1 cache为每个core私有。为了简化问题，我们考虑图1所示只包含一层cache的处理器结构。</p>
+<h4 id="读写策略"><a href="#读写策略" class="headerlink" title="读写策略"></a>读写策略</h4><p>来看看引入了缓存之后，CPU的<em>load&#x2F;store</em>操作。</p>
+<p>首先考虑读，CPU发起读操作时，首先会在其cache中找，如果没有找到则被称作发生了cache miss，这时就会去下一层（这里是主存）中读取，取到的数据会除了放入目标寄存器，还会保留在cache中缓存；</p>
+<p>再来考虑写，处理器会直接修改cache中的数据，这引发了cache和主存中数据的不一致，因此该写操作需要被传播到下一层。有两种策略，写直达策略中，对cache line的修改会立刻传播到下一层存储层次；写回策略中，被修改的cache line会被标记为脏，当该cache line因为cache已满需要被换出时，修改的数据才会被写回下一层。</p>
+<p>看起来已经很完美了，CPU可以高速地完成读写，被修改的数据也可以正确传播到下一层级。但是我们可以发现另一个显著的问题——CPU的私有cache之间是独立的，它们之间的数据一致性得不到保证，同一个地址的数据因为在不同CPU中执行了存取操作，导致在不同cache看到的值不一致，这就是缓存一致性（<em>cache coherence</em>）问题。</p>
+<p>为了解决缓存一致性问题，CPU对于私有cache中副本值的修改需要被传播给其他CPU。因此，CPU之间可以通过总线来传递这一消息，另外，因为总线一次只能被一个CPU使用，因而保证了这个事务传播的串行化——不会同时有多个CPU传递写事务。</p>
+<p>那么，这个CPU传递给其他CPU的“消息”包含的是什么内容？写无效策略是一种主要的策略，通过在总线传播写操作，其他收到“消息”的CPU将私有cache中对应的cache line标记为无效，这样下次对其访问就会发生cache miss，触发重新从下一层级读取以看到最新值。</p>
+<h4 id="MESI协议"><a href="#MESI协议" class="headerlink" title="MESI协议"></a>MESI协议</h4><p>通过给cache line标记状态，来判断它是否有效，这在写直达策略是可以采用的。但是写直达策略需要频繁写入下一层存储，占用大量带宽并且也会增大能耗。采用写回策略可以大幅降低带宽开销，但为了保证缓存一致性，需要的方案也更复杂。MESI协议便是一种常见的通用方案。</p>
+<p>MESI协议把一个cache line区分为四种状态，分别是：</p>
+<p><strong>Modified</strong>：cache line有效，被该缓存独占，且其数据与主存中的原始数据不同，即已经被修改；</p>
+<p><strong>Exclusive</strong>：cache line有效，被该缓存独占，并且是干净的（即数据和主存一致）；</p>
+<p><strong>Shared</strong>：cache line有效，被多个缓存共享，数据是干净的；</p>
+<p><strong>Invalid</strong>：cache line无效，即空缓存行。</p>
+<p>基于上述对cache line的标记，CPU之间可以传消息来修改各自缓存中某个cache line的状态，如<strong>Invalidate</strong>消息会请求其他CPU将其cache中缓存的同一地址对应的cache line移出；<strong>Invalidate Acknowledge</strong>消息则是用于响应<strong>Invalidate</strong>消息，告知发送方已完成相应的cache line移出cache操作。</p>
+<p>cache line的四种状态会随着自身的操作和收发而发生改变，如图3所示：</p>
+<img src="/images/parallel_fundamental/MESIState.png" alt="MESIState" style="zoom:50%;" />
+
+<p style="text-align: center">图3 - MESI协议的状态转换图，图源[2]</p>
+
+<p>这里a-g都对应了一系列操作，举两个例子：</p>
+<ol>
+<li>当cache line为<strong>I</strong>状态时，对当中地址的<strong>读取</strong>触发cache miss，随即会在总线上产生一个读请求以从主存读取块。如果有其他CPU检测到在自己的缓存中拥有这块拷贝时，则会直接将数据共享给请求者的缓存，相应的行置为<strong>S</strong>状态了；如果没有其他CPU响应，则该行被置为<strong>E</strong>状态。</li>
+<li>当一个cache line为<strong>S</strong>状态，表示它存在于多个缓存中，当对其中的地址执行<strong>写</strong>操作时，需要先在总线发出无效化请求（即前述<strong>Invalidate</strong>消息），等待其他CPU的一系列<strong>Invalidate Acknowledge</strong>响应后才能写入，并转换为<strong>M</strong>状态。同样的，其他收到<strong>Invalidate</strong>的CPU会将缓存中的相应行从<strong>S</strong>置为<strong>I</strong>状态</li>
+</ol>
+<p>图4演示了一个状态转换过程。CPU0和CPU1的私有cache共享同一个cache line的副本，CPU0需要对该cache line中的块执行写操作。最后，该cache line在CPU0中状态为M，还未写回主存中。</p>
+<p><img src="/images/parallel_fundamental/cache_coherence.png" alt="cache_coherence"></p>
+<p style="text-align: center">图4 - 一个cache line状态转换示例</p>
+
+<p>MESI协议既保证了缓存一致性又提高了性能：不同的CPU对于私有cache的读写不会出现冲突，写入前需要确保处于独占状态即<strong>E&#x2F;M</strong>，读取时可以直接从其他CPU缓存中获得并置为<strong>S</strong>状态，远快于从主存中读取。</p>
+<p>除了标准的MESI协议，常见的CPU架构还会采用其改进版，如ARM采用了<strong>MOESI</strong>协议，引入了一个O（Owned）状态，并修改S状态的定义为其数据有可能是脏的（即与主存不一致）。O状态和S状态是类似的，区别在于存在多份拷贝是O状态必须唯一，在被收回时，S状态的缓存行可以直接被抛弃，处于O状态的缓存行来负责将数据写回。MOESI协议允许脏缓存行的共享，即M状态的缓存行可以被降级为O，从而减少写回频率，提高总线带宽。</p>
+<h3 id="原子操作实现"><a href="#原子操作实现" class="headerlink" title="原子操作实现"></a>原子操作实现</h3><p>通过缓存一致性协议我们解决了数据的一致性问题，只有一个CPU能获得对要修改内存单元的权限，写完毕后，新的值也会传播到其他CPU的cache中，对于同一地址的修改得以串行化。</p>
+<p>再来回到前一部分，对于问题1，可以有不同的解决方案。</p>
+<h4 id="锁总线"><a href="#锁总线" class="headerlink" title="锁总线"></a>锁总线</h4><p>x86架构的早期处理器采用了这种方式，我们知道CPU访问内存需要通过共享的总线，通过某种机制给总线上锁，让一个CPU核心在一段时间内独占总线，即可阻止其他处理器对内存的访问。如XCHG指令，或通过给指令加LOCK前缀。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 5</span></span><br><span class="line"><span class="type">static</span> <span class="type">atomic_int</span> a;</span><br><span class="line"><span class="type">void</span> <span class="title function_">add</span><span class="params">()</span> &#123;</span><br><span class="line">    atomic_fetch_add(&amp;a, <span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// ------ Assembly：</span></span><br><span class="line">add:</span><br><span class="line">    lock  addl  $<span class="number">1</span>, a(%rip)</span><br><span class="line">    retq</span><br></pre></td></tr></table></figure>
+
+<p>为了提高性能，当lock操作相关的内存地址在cache中时，在P6以后的x86处理器对于lock操作可能不会执行锁总线，而是通过缓存一致性来保证原子性（如前所述，缓存一致性保证了对同一地址的修改操作<strong>串行化</strong>）[6]。</p>
+<h4 id="LL-SC"><a href="#LL-SC" class="headerlink" title="LL&#x2F;SC"></a>LL&#x2F;SC</h4><p>锁总线的代价是相对高昂的，它导致其他CPU在此期间无法访问主存。</p>
+<p>虽然读改写的原子指令要求整个序列都完整执行&#x2F;都不执行，但是对于其实只有“写”的部分是对外部有影响的，也即被其他CPU可见，“读改”这两步是否执行并不重要。当执行读改写的原子指令序列过程中，如果有某种机制可以在对一个地址执行存储指令之前，知道要写的地址是否被访问过，就可以取消序列，尝试重新执行。</p>
+<p>LL&#x2F;SC（<em>Load-Link &#x2F; Store-Conditional</em>）就是这样一种机制。LL&#x2F;SC是一对读&#x2F;写指令，LL指令除了执行加载操作外，还会将<strong>要读的地址</strong>记录在某个位置；SC指令只有在它存储的地址与前述保存LL指令读取地址匹配时才能成功执行。当一个CPU执行SC指令之前，其他CPU竞争过它先执行了SC指令，就会导致该CPU执行SC失败，存储指令取消，整个原子序列被重复执行。</p>
+<p>ARM就采用了这样一种机制实现原子操作，LL&#x2F;SC对应的指令是LDXR&#x2F;STXR（AArch64），中间的”X”表示Exclusive，在处理器内部通过维护名为<em>Exlusive Monitor</em>的状态机来记录实现LL&#x2F;SC需要的状态。使用LDXR从一个地址中读取块时，该地址会被置为Exclusive状态；当使用STXR向一个地址存入块时，如果该地址不处于Exclusive状态则存储操作失败，否则存储成功并且Exclusive状态被重置[5]。</p>
+<p>我们通过代码来具体看：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 6</span></span><br><span class="line"><span class="built_in">std</span>::atomic&lt;<span class="type">int</span>&gt; value;</span><br><span class="line"><span class="type">int</span> <span class="title function_">add</span><span class="params">(<span class="type">int</span> v)</span> &#123;</span><br><span class="line">  <span class="keyword">return</span> value.fetch_add(v, <span class="built_in">std</span>::memory_order_relaxed);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>上述代码使用到了C++11的原子操作，暂时忽略当中没介绍到的部分。<code>add</code>函数的作用是原子性地将<code>v</code>加到原子变量<code>value</code>上并返回增加前的值。使用apple-clang 11.0.0，ARM64架构的编译结果如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">; add(int): </span><br><span class="line">; ......</span><br><span class="line">    adrp  x9, _value@PAGE</span><br><span class="line">    add	  x9, x9, _value@PAGEOFF </span><br><span class="line">        ; x9 &lt;- address of &quot;value&quot;</span><br><span class="line">        ; w0 &lt;- v</span><br><span class="line">LBB0_1:</span><br><span class="line">    ldxr  w8, [x9]				; 读取value的值到x8，地址置exclusive状态</span><br><span class="line">    add	  w10, w8, w0			;	将参数v的值与value值相加结果放入w10</span><br><span class="line">    stxr  w11, w10, [x9]	;	将结果w10使用条件存写入value，操作执行的结果放入w11</span><br><span class="line">    cbnz  w11, LBB0_1			; 若w11非零，则条件存失败，说明上述操作原子性被破坏，跳转回LBB0_1</span><br><span class="line">    mov	  x0, x8</span><br><span class="line">    ret</span><br></pre></td></tr></table></figure>
+
+<p>可以看到该原子操作被实现为了一个循环，首先通过<em>ldxr</em>指令读取原子变量<code>value</code>的值，加上<code>v</code>后，使用<em>stxr</em>指令条件存。如果条件存失败（对应地址非Exclusive状态，说明其他CPU核心对该地址执行了STXR），则回到<em>ldxr</em>开始重新执行。</p>
+<h2 id="指令重排"><a href="#指令重排" class="headerlink" title="指令重排"></a>指令重排</h2><p>借由原子操作，我们可以改进<code>code case 3</code>中的自旋锁模式如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 7</span></span><br><span class="line"><span class="type">int</span> <span class="built_in">array</span>[ARRAY_MAX_SIZE]; </span><br><span class="line"><span class="type">int</span> array_end = <span class="number">0</span>;</span><br><span class="line"><span class="type">int</span> flag;</span><br><span class="line"><span class="keyword">extern</span> <span class="type">bool</span> <span class="title function_">test_and_set</span><span class="params">(<span class="type">int</span> *)</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">push_item</span><span class="params">(<span class="type">int</span> value)</span> &#123;</span><br><span class="line">  <span class="keyword">while</span>(test_and_set(&amp;flag)) &#123;&#125; <span class="comment">// (1) - 执行TAS操作原子操作</span></span><br><span class="line">  <span class="built_in">array</span>[array_end++] = value; 	<span class="comment">// (2) - 临界区</span></span><br><span class="line">  *flag = <span class="number">0</span>; 										<span class="comment">// (3) - 解锁</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>现在看来，这个自旋锁可以正常工作了。对flag的读-改-写序列被保证为原子化操作，获取锁后，执行临界区代码，再执行解锁操作。</p>
+<p>注意上述的三句对执行流程的描述，它隐式地包含了我们的期望：代码对应到的指令，或者说更关键的，对存储器的访问是按照代码中的顺序依次执行的。这个顺序就是<em><strong>program order</strong></em>，程序源代码中呈现出的指令顺序。</p>
+<p>但是，真正到了CPU开始执行指令的时候，指令顺序会与我们的期望有偏差吗？至少我们能想到两点：</p>
+<p>现代处理器往往都实现了乱序执行（<em>out-of-order execution</em>），通过对指令执行动态调度，保留数据和控制流依赖的前提下重新排序，实现指令级并行。比如当读写数据阻塞，在等待时CPU就可能会优先执行后续的指令；</p>
+<p>在软件层面，编译器为了提高性能，也会对生成的指令进行重排。源代码经过编译器优化后得到的指令并序列不一定会保证program order。</p>
+<p>为了防止编译器的指令重排，我们需要某种机制告知编译器，这在后面会介绍；</p>
+<p>另外，我们了解的乱序执行、分支预测这些手段是CPU内部为了提高效率而执行的优化，最终还是需要保证执行结果的正确性，也即所谓的底层实现对外隐藏。因此，这些优化对于单线程执行的程序不会引发任何问题。</p>
+<p>我们上述的自旋锁显然不是为了在单线程中使用，就是为了解决多线程的同步问题而引入的。思考当两个线程A、B在执行上述代码，是否有可能因为乱序执行，导致线程A中，(3)对应的指令被先于(2)执行，从而使得线程B在线程A并未完成临界区操作的前提下，也“获得”了锁，开始执行(2)？如果有可能，应该如何做来保证程序执行符合预期？到这里，我们也就遇到了所谓的内存一致性（<em>memory consistency</em>）的问题。</p>
+<h2 id="内存一致性模型"><a href="#内存一致性模型" class="headerlink" title="内存一致性模型"></a>内存一致性模型</h2><p>我们先以经典的的生产者、消费者模式为例，考虑以下代码：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 8</span></span><br><span class="line">Data *buffer;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread1</span><span class="params">()</span> &#123;</span><br><span class="line">  *buffer = produce_data(); <span class="comment">// (1) - 数据存入buffer</span></span><br><span class="line">  notify_data_ready();			<span class="comment">// (2) - 通知数据已经准备就绪</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread2</span><span class="params">()</span> &#123;</span><br><span class="line">  wait_for_data_ready();		<span class="comment">// (3) - 等待数据准备就绪</span></span><br><span class="line">  consume_data(*buffer);		<span class="comment">// (4) - 从buffer读数据，使用</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>上述代码包含了一个生产者线程和一个消费者线程。我们期望生产者线程生产出数据<strong>并放入buffer后</strong>，消费者线程 从buffer中取出数据并处理。为了让代码在逻辑上执行正确，当两个线程同时执行时，我们期望有(1) → (2) → (3) → (4)的执行顺序。这中间有一个先后顺序 (2) → (3) 是跨线程的，因此需要采取适当的同步措施。</p>
+<p>iOS开发中遇到此类问题，我们通常使用GCD信号量对象解决：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">dispatch_semaphore_t</span> semaphore; <span class="comment">// 在合适的地方初始化信号量值为0</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">wait_for_data_ready</span><span class="params">()</span> &#123;</span><br><span class="line">  dispatch_semaphore_signal(semaphore); <span class="comment">// 信号量计数+1</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">notify_data_ready</span><span class="params">()</span> &#123;</span><br><span class="line">  dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER); <span class="comment">// 信号量计数-1, 阻塞等待</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>线程2执行到<code>wait_for_data_ready</code>会递减信号量的计数器，如果其值小于0则阻塞，直到被线程1调用<code>notify_data_ready</code>增加计数器后被唤醒。线程被阻塞后会让出时间片，发生一次上下文切换，在被唤醒时还会触发一次上下文切换。</p>
+<p>让我们考虑得更深一些，如果可以预知数据的生产是极快的，并且这个生产-消费的逻辑可能频繁执行时，有没有办法做到不阻塞线程而是放开两个线程去跑？尝试用一个简单值作为“信号”来完成这个同步：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 9</span></span><br><span class="line">Data *buffer;</span><br><span class="line"><span class="type">int</span> dataIsReady;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread0</span><span class="params">()</span> &#123;</span><br><span class="line">  *buffer = produce_data(); <span class="comment">// (1) - 数据存入buffer</span></span><br><span class="line">  dataIsReady = <span class="number">1</span>;					<span class="comment">// (2) - 通知数据已经准备就绪</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread1</span><span class="params">()</span> &#123;</span><br><span class="line">  <span class="keyword">while</span>(!dataIsReady) &#123;&#125; 		<span class="comment">// (3) - 等待数据准备就绪</span></span><br><span class="line">  consume_data(*buffer);		<span class="comment">// (4) - 从buffer读数据，使用</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>看起来这样是没有问题的，是因为我们的直觉是代码按照program order被执行，也就是说不应该出现(2)先于(1)被执行的情况，这会导致执行完(3)后，执行(4)时取到的buffer还没有被正确设置数据。</p>
+<p>没有了信号量的保障，如果上述线程分别在两个处理器上被执行，那就有可能(1), (2)对应的指令和(3), (4)对应的指令在同一时刻被执行到。因为有数据流依赖，(4)肯定不会被调度到(3)之前执行，问题落到了(1)和(2)的执行顺序上。</p>
+<p>换个角度，其实我们需要的是(1)的执行结果先于(2)被其他处理器<strong>看到</strong>，不论CPU是否将(2)调度到(1)之前执行，只要能保证在另一个处理器上，如果读取到了(2)执行的结果，(1)的结果也必然能被读取到就好了。</p>
+<p>* 注意这里和后面部分都会用到一个词“<strong>看到</strong>”，这是对于”<em>be visible to</em>“的翻译，可以理解为当一个处理器发生store操作时，其无效化或更新请求结果被传播给了其他处理器的cache</p>
+<h3 id="顺序一致性模型"><a href="#顺序一致性模型" class="headerlink" title="顺序一致性模型"></a>顺序一致性模型</h3><p>这就是内存一致性（<em>memory consistency</em>）要解决的问题，即所有的处理器所能看到的对任意存储器地址的访问之间的次序问题。通俗点解释，可以理解为某个CPU核心的写操作何时能被其他CPU核心看到。</p>
+<p>最直观的，从我们上一部分的“直觉”衍生出来，期望<code>code coase 9</code>中的代码对于内存的访问顺序以program order执行，这种模型就是顺序一致性（<em>sequential consistency</em>）模型。这个概念的定义来自于<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Leslie_Lamport"><em>Leslie Lamport</em></a>：</p>
+<blockquote>
+<p>the result of any execution is the same as if the operations of all the processors were executed in some sequential order, and the operations of each individual processor appear in this sequence in the order specified by its program.</p>
+</blockquote>
+<p>SC要求来自一个处理器对于存储器地址的访问以<strong>program order</strong>执行，并且每个访问的执行必须是原子性的，也就是写操作被<strong>即时</strong>传播到其他处理器。</p>
+<p>用两个例子来说明SC的要求（两个例子中a&#x2F;b初始值均为0）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 9</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">thread0</span><span class="params">()</span> &#123;</span><br><span class="line">  a = <span class="number">1</span>;			<span class="comment">// (1) - store to a</span></span><br><span class="line">  print(b);		<span class="comment">// (2) - read from b</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread1</span><span class="params">()</span> &#123;</span><br><span class="line">  b = <span class="number">1</span>;			<span class="comment">// (3) - store to b</span></span><br><span class="line">  print(a);		<span class="comment">// (4) - read from a</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>两个线程同时被执行，根据顺序一致性（SC）模型的要求，对存储器的访问顺序需要保持program order。因此打印的结果只可能是 (0, 1) &#x2F; (1, 0) &#x2F; (1, 1)，而不可能出现(0, 0)——这种情况对应(2)在(1)之前发生或(4)在(3)之前发生。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 10</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">thread0</span><span class="params">()</span> &#123;</span><br><span class="line">  a = <span class="number">1</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread1</span><span class="params">()</span> &#123;</span><br><span class="line">  <span class="keyword">while</span> (a != <span class="number">1</span>) &#123;&#125;</span><br><span class="line">  b = <span class="number">1</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread2</span><span class="params">()</span> &#123;</span><br><span class="line">  <span class="keyword">while</span> (b != <span class="number">1</span>) &#123;&#125;</span><br><span class="line">  print(a);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>三个线程同时执行，根据SC的要求，每个访问执行必须是原子性的，这意味着打印结果不可能是0——这种情况下意味着当thread2读到b为1时，thread0对于a的写操作还未被传播给thread2，然而它却已经被传播给了thread1。</p>
+<p>要注意，前面介绍的缓存一致性（<em>cache conherence</em>）并不能覆盖内存一致性问题，前者只解决了对单个地址的访问排序问题，而后者考虑的是对任意地址访问之间的次序问题。</p>
+<p>在SC中，要求内存访问按照program order，而缓存一致性只要求对同一地址的写串行化；SC要求对存储器的访问是原子性的，而缓存一致性只保证了写操作最终会对所有处理器可见，并没有即时性要求。为了说明这点，考虑如下已经实现了<em>cache conherence</em>的CPU结构：</p>
+<img src="/images/parallel_fundamental/caches_with_invalidate_queue.png" alt="caches_with_invalidate_queue" style="zoom:75%;" />
+
+<p style="text-align: center">图5 - 带有无效化队列的cache结构，图源[2]</p>
+
+<p>注意到，在CPU和其私有cache之间，引入了写缓冲（<em>store buffer</em>），回顾缓存一致性部分中介绍的，CPU对一个地址发起写操作时，对应的cache line必须处在独占状态（<strong>M&#x2F;E</strong>），否则需要等待其他CPU的<strong>Invalidate Acknowledge</strong>消息，为了避免此期间空等，CPU会将要写的数据放入<em>store buffer</em>转而继续执行代码。在<code>code case 8</code>中，<em>store buffer</em>的存在可能导致(2)的执行结果先于(1)的结果被观察到，导致(4)执行失败。program order的保证被破坏。</p>
+<p>在cache外引入了无效化队列（<em>invalidate queue</em>），它的作用是当<strong>Invalidate</strong>消息到达时，直接将需要无效化的cache line放入队列，然后发送acknowledge应答，推迟实际无效化操作的执行以尽可能减少响应acknowledge的延迟。这是因为当<strong>Invalidate</strong>消息到达时CPU可能正与其缓存正在执行密集的访问，无法立即完成相应cache line的无效化。在<code>code case 8</code>中，<em>invalidate queue</em>的存在可能导致(1)的执行结果未即时传播，(4)读到的还是旧值。写操作的原子性被破坏。</p>
+<p>因此，因为这些结构的引入，再加上CPU还可能会有的乱序执行、存储器操作访问的重叠，内存一致性问题被更加复杂化，这种情况下如果要实现SC，性能开销是巨大的。</p>
+<p>虽然SC模型直观、易于理解，在并行执行时不会出现某些“违反直觉”的问题，但要实现这种模型会严格限制编译器和CPU的优化，因此现代处理器体系结构基本都没有采用SC模型。这里介绍我们常见的x86和ARM体系结构。</p>
+<h3 id="TSO模型"><a href="#TSO模型" class="headerlink" title="TSO模型"></a>TSO模型</h3><p>相比于SC，x86采用的内存一致性模型要稍微放松一些，一般被称为TSO（<em>Total Store Order</em>，全序写）。</p>
+<blockquote>
+<p>其实Intel手册[6]中对于Intel64和IA32架构的内存模型，倒是没有明确说到TSO这个词，不过根据Google相关的文章和分析，对于x86的内存模型一般都认为非常近似于TSO，参考[7]</p>
+</blockquote>
+<p>在最严格的SC模型中，要求保证所有存储器访问次序，存储器访问也就是<em>load&#x2F;store</em>操作，排列一下，即保证所有的<em>load → load</em>, <em>load → store</em>, <em>store → store</em>, <em>store → load</em>的次序。TSO放松了最后一个次序，也即允许<em>store&#x2F;load</em>重排。查阅手册[6] - 8.2.2 了解到以下几点：</p>
+<ol>
+<li>单处理器<em>store</em>操作和<em>load</em>操作分别按照program order</li>
+<li><em>store</em>操作不被重排到之前的<em>load</em>前</li>
+<li><em>load</em>操作可以被重排到之前非同地址的<em>store</em>前</li>
+<li>单处理器的<em>store</em>操作的顺序能被所有处理器看到，且服从因果关系，即拥有传递可见性。</li>
+</ol>
+<p>第4点也就可以解释<em>Total Store Order</em>的字面意思；第3点说明TSO放松了对较早<em>store</em>和较晚<em>load</em>直接的次序，这意味着上一部分的<em>store buffer</em>可以被使用以减少写延迟，即store操作可放入<em>store buffer</em>中被延后执行，然后提前开始较晚的<em>load</em>操作。另外，为了保证写顺序，x86中的<em>store buffer</em>是FIFO的结构的[7]。</p>
+<p><em>store → load</em>次序的放松的例子（a&#x2F;b初始值为0）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 11</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">thread0</span><span class="params">()</span> &#123;</span><br><span class="line">  a = <span class="number">1</span>;   	<span class="comment">// (1) - store to a</span></span><br><span class="line">  print(b);	<span class="comment">// (2) - load from b</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread1</span><span class="params">()</span> &#123;</span><br><span class="line">  b = <span class="number">1</span>;		<span class="comment">// (3) - store to b</span></span><br><span class="line">  print(a); <span class="comment">// (4) - load from a</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>TSO模型中，打印结果(0, 0)是允许出现的，对应的一种执行顺序是(2)→(4)→(3)→(1)，即发生了store&#x2F;load重排。</p>
+<h3 id="弱一致性模型"><a href="#弱一致性模型" class="headerlink" title="弱一致性模型"></a>弱一致性模型</h3><p>与移动端开发者打交道更多的ARM处理器，使用了放松得多的内存模型，被称为弱内存模型（<em>weakly-ordered memory model</em>），在ARM采用的弱内存模型下，<em>load&#x2F;store</em>之间的次序可以被自由重排，即<em>load &#x2F; load</em>, <em>load &#x2F; store</em>, <em>store &#x2F; store</em>, <em>store &#x2F; load</em>四种重排都可能发生，唯一保证的是有数据依赖的指令顺序。</p>
+<p>相比之符合我们直觉的SC，弱一致性模型对存储器访问的次序几乎没有保障，并且也不保证访问的原子性，因为它基于程序是适当同步这个假定来保证执行的正确性。</p>
+<p>通过放松对<em>load&#x2F;store</em>次序的要求，弱一致性模型可以获得更好的性能，压力就来到了程序员这边，为了保证程序执行的正确性，需要做合适的同步手段，通过适当的指令，主动加入约束来限制<em>load&#x2F;store</em>次序的重排。内存屏障也就是这样一种手段。</p>
+<h2 id="内存屏障"><a href="#内存屏障" class="headerlink" title="内存屏障"></a>内存屏障</h2><p>内存屏障（<em>memory barrier</em>）也被称为<em>memory fence</em>，可以从字面意思了解，它限制了屏障之前&#x2F;之后或两边的存储器访问次序，不能单方向或双向跨过屏障。</p>
+<p>最简单的是编译器层面的内存屏障，GCC屏障的常见写法是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">__asm__ __volatile__(<span class="string">&quot;&quot;</span> ::: <span class="string">&quot;memory&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<p>用于指示编译器，不要将内存的读写操作跨过这条屏障重排序，这样生成的指令，屏障前&#x2F;后的内存读写指令就不会被优化到屏障之后&#x2F;之前。</p>
+<p>只有编译器屏障是不够的，根据前部分所述我们还需要硬件级别的屏障指令。</p>
+<h3 id="X86"><a href="#X86" class="headerlink" title="X86"></a>X86</h3><p>x86的内存模型允许<em>store -&gt; load</em>次序的重排，如果我们需要避免这种情况，则需要用到<code>mfence</code>指令，它会将本地store buffer中的数据输入内存中，以确保指令之前的所有<em>load&#x2F;store</em>操作全局可见。对于<code>code case 11</code>，为了避免(0, 0)这种打印结果出现，可以通过插入mfence屏障避免两个读操作重排到其前一条指令之前：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">thread0</span><span class="params">()</span> &#123;</span><br><span class="line">  a = <span class="number">1</span>;   	<span class="comment">// (1) - store to a</span></span><br><span class="line">  __asm__ __volatile__(<span class="string">&quot;mfence&quot;</span> ::: <span class="string">&quot;memory&quot;</span>)</span><br><span class="line">  print(b);	<span class="comment">// (2) - load from b</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">thread1</span><span class="params">()</span> &#123;</span><br><span class="line">  b = <span class="number">1</span>;		<span class="comment">// (3) - store to b</span></span><br><span class="line">  __asm__ __volatile__(<span class="string">&quot;mfence&quot;</span> ::: <span class="string">&quot;memory&quot;</span>)</span><br><span class="line">  print(a); <span class="comment">// (4) - load from a</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="ARM"><a href="#ARM" class="headerlink" title="ARM"></a>ARM</h3><p>因为存在各种类型的<em>load&#x2F;store</em>重排，ARM的指令相对就比较多了，ARMv7提供3条屏障指令：</p>
+<ul>
+<li>DMB（Data Memory Barrier）：防止对存储器的访问跨越屏障重排</li>
+<li>DSB（Data Synchronization Barrier）：在DMB的基础上，防止后续的所有指令在同步完成之前执行</li>
+<li>ISB（Instruction Synchronization Barrier）：清空流水线中预取的指令，以保证重新获取后续指令</li>
+</ul>
+<p>DMB&#x2F;DSB指令可以提供一个参数以指定屏障类型，如<code>dmb ishld</code>用作读屏障，它防止之后的存储器访问操作被重排到之前的所有<em>load</em>之前，换句话说就是等待屏障之前的<em>load</em>操作都执行完毕（全局可见）。</p>
+<p>AArch64开始，引入了限制性更小的<a target="_blank" rel="noopener" href="https://developer.arm.com/docs/den0024/a/memory-ordering/barriers/one-way-barriers"><em>One-Way Barriers</em></a>指令，他们不再是单纯的屏障指令，而是携带有屏障语义的<em>load&#x2F;store</em>指令，分别是：</p>
+<ul>
+<li>LDAR &#x2F; LDAXR：除了执行load数据到一个寄存器外，还防止其后的<em>load&#x2F;store</em>操作被重排到这条指令之前，也就是<em>load-acquire</em>语义</li>
+<li>STLR &#x2F; STLXR：除了执行将一个寄存器中的数据store到内存地址外，还防止其之前的<em>load&#x2F;store</em>操作被重排到这条指令之后，也就是<em>store-release</em>语义</li>
+</ul>
+<p>（LDAXR &#x2F; STLXR带独占语义，前述的LL&#x2F;SC部分有介绍）</p>
+<img src="/images/parallel_fundamental/one_way_barrier.png" alt="One-way barriers" style="zoom:30%;" />
+
+<p style="text-align: center">图6 - One-Way Barrier对内存操作的限制，图源[4]</p>
+
+<h2 id="C-11内存模型"><a href="#C-11内存模型" class="headerlink" title="C++11内存模型"></a>C++11内存模型</h2><p>可以看到，不同的体系结构的内存屏障指令差别较大，这不仅仅是因为指令本身不同，根本原因是它们有不同的内存一致性模型，这不利于程序员编写跨平台的代码。又是那句话：”All problems in computer science can be solved by another level of indirection”，可以将内存一致性模型与编程语言相结合，靠编程语言来提供底层无关的内存模型，比较知名的是Java内存模型。因为对于Java不够了解，并且iOS程序员打交道更多的是C&#x2F;C++，这里主要介绍C++11引入的内存模型。</p>
+<blockquote>
+<p>C11标准也采用了C++11的内存模型。现在libdispatch实现就是基于C11内存模型的。</p>
+</blockquote>
+<p>C++标准基于一台抽象机，这台“机器”在C++98&#x2F;03标准时被看作单线程的——多线程并没有被考虑在内，因此C++11之前标准库并没有多线程相关的接口，无法编写出与系统库无关的跨平台多线程代码。C++11标准开始引入了多线程的支持，也有了语言抽象的内存模型。对于语言的内存模型我们思考的层面要从<strong>指令 &#x2F; CPU</strong>提升到<strong>语句 &#x2F; 线程</strong>。</p>
+<h3 id="原子类型"><a href="#原子类型" class="headerlink" title="原子类型"></a>原子类型</h3><p>C++11引入了标准原子类型来实现原子操作，定义在头文件<code>&lt;atomic&gt;</code>中（对应C11的<code>&lt;stdatomic.h&gt;</code>），对原子类型的变量提供了读&#x2F;写&#x2F;读改写的原子操作。经由原子变量，我们可以通过指定不同的”memory order”限制存储顺序，以此实现线程间的同步。</p>
+<p>以<code>code case 8</code>的生产&#x2F;消费模型为例，利用C++11的原子变量，其实现如下：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 12</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;atomic&gt;</span></span></span><br><span class="line">Data *buffer;</span><br><span class="line"><span class="function">std::atomic&lt;<span class="type">bool</span>&gt; <span class="title">data_ready</span><span class="params">(<span class="literal">false</span>)</span></span>;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">thread1</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  *buffer = <span class="built_in">produce_data</span>(); 		<span class="comment">// (1) - 数据存入buffer</span></span><br><span class="line">  data_ready.<span class="built_in">store</span>(<span class="literal">true</span>);				<span class="comment">// (2) - 通知数据已经准备就绪</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">thread2</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">while</span>(!data_ready.<span class="built_in">load</span>()) &#123;&#125;	<span class="comment">// (3) - 等待数据准备就绪</span></span><br><span class="line">  <span class="built_in">consume_data</span>(*buffer);				<span class="comment">// (4) - 从buffer读数据，使用</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于操作之间的顺序有几个概念：</p>
+<p> <em>happens-before</em>描述了两个操作产生的结果之间的关系，一个<em>happens-beore</em>另一个操作的操作，其结果也将被另一个操作看到。在单线程中，如果操作A<em>sequenced-before</em>操作B，则有操作A<em>happens-before</em>操作B。（对于<em>sequenced-before</em>关系，<a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/language/eval_order">标准</a>中有明确定义。这里可以看做在源代码中，A所在语句出现在B之前）</p>
+<p><em>inter-thread happens-before</em>用于描述线程之间，两个操作的<em>happens-beore</em>关系，并且<em>inter-thread happens-before</em>是可以传递的。</p>
+<p><em>synchronize-with</em>关系针对于原子操作，它的解释有点绕，可以参见[8] - 5.3.1。如果一个线程对一个原子变量执行写操作A，另一个线程对这个原子变量执行读操作B，则它们之间就有A <em>synchronize-with</em>B的关系。这个关系是帮助两个线程达成<em>inter-thread happens-before</em>关系的，如果A<em>synchronize-with</em>B，那么A <em>inter-thread happens-before</em>B</p>
+<p>在<code>code case 12</code>这个示例中，(1) <em>happens-beore</em>(2)，(3) <em>happens-beore</em>(4)；原子写操作(2) <em>synchronize-with</em>读操作(3)，从而建立了<em>inter-thread happens-before</em>关系，进一步可以推出(1) <em>inter-thread happens-before</em>(4)。因此上述代码可以以我们期望的结果运行，即当(3)读到(2)对<code>data_ready</code>的写入后，(1)的写入也对(4)可见。</p>
+<h3 id="内存序"><a href="#内存序" class="headerlink" title="内存序"></a>内存序</h3><p>可以看到，原子变量的<em>synchronize-with</em>关系是实现线程间同步的关键。事实上，C++为原子变量提供了6种memory order，达成<em>synchronize-with</em>关系要求读写操作是”<em>suitably tagged</em>“，指的就是使用恰当的memory order，它们分别是：</p>
+<ul>
+<li>memory_order_seq_cst（默认）</li>
+<li>memory_order_acquire</li>
+<li>memory_order_release</li>
+<li>memory_order_acq_rel</li>
+<li>memory_order_consume</li>
+<li>memory_order_relaxed</li>
+</ul>
+<p>这6个memory order用在原子类型对象操作上是不能随意组合的，它们对应了三种内存一致性模型：</p>
+<ul>
+<li><p>memory_order_seq_cst对应前面提到的<em>sequential consistency</em>模型，保证了所有对原子类型的操作顺序一致，这也可以解释它为什么被作为默认值，因为是最符合程序员直觉的模型；</p>
+</li>
+<li><p>memory_order_relaxed对应了松弛的一致性模型，参考弱一致性模型来理解，它只保证了这是个原子操作，不保证任何同步关系，即无法建立<em>synchronize-with</em>关系；</p>
+</li>
+<li><p>其他的四个对应的是释放一致性(<em>release consistency</em>)模型，这种模型下 ，<em>load</em>操作带有acquire语义，它保证在load完成之前，阻止其后访存操作向前迁移，即不被重排到load之前；相应的<em>store</em>操作带有release语义，阻止其之前的访存操作越过store向后迁移。因此acquire-release语义也可以建立<em>synchronize-with</em>关系，以<code>code case 12</code>为例，可以改为：</p>
+</li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 12</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;atomic&gt;</span></span></span><br><span class="line">Data *buffer;</span><br><span class="line"><span class="function">std::atomic&lt;<span class="type">bool</span>&gt; <span class="title">data_ready</span><span class="params">(<span class="literal">false</span>)</span></span>;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">thread1</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  *buffer = <span class="built_in">produce_data</span>();	<span class="comment">// (1)									</span></span><br><span class="line">  data_ready.<span class="built_in">store</span>(<span class="literal">true</span>, std::memory_order_release); <span class="comment">// (2)</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">thread2</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">while</span>(!data_ready.<span class="built_in">load</span>(std::memory_order_acquire)) &#123;&#125; <span class="comment">// (3)</span></span><br><span class="line">  <span class="built_in">consume_data</span>(*buffer);	<span class="comment">// (4)</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>memory_order_acq_rel用于acquire-release语义的RMW（如fetch_add）操作；memory_order_consume也用于load和memory_order_release配对使用，它基于数据依赖保证同步，但不被推荐使用，详见[5]。</p>
+<p>在需要更高性能的代码中（如libdispatch）acquire-release会用得相对更多，因为根据前面的描述我们可以知道使用默认的memory_order_seq_cst可能会带来更大的开销。</p>
+<p>比如，x86内存模型下只存在<em>store → load</em>重排，因此<em>load &#x2F; store</em>操作自带acquire &#x2F; release语义，不需要额外的指令开销，某些情况下如果使用memory_order_seq_cst可能会导致插入一条不必要的<code>mfence</code>指令；ARM64下，使用acquire-release语义的<em>load &#x2F; store</em>则是可以直接对应到<em>One-Way Barrier</em>(LDAR&#x2F;STLR)指令。</p>
+<h2 id="再看自旋锁"><a href="#再看自旋锁" class="headerlink" title="再看自旋锁"></a>再看自旋锁</h2><p>到这里，相关的知识点可以到一个段落了，来实现最终有效的自旋锁代码：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// code case 13</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;atomic&gt;</span></span></span><br><span class="line"><span class="type">int</span> array[ARRAY_MAX_SIZE]; </span><br><span class="line"><span class="type">int</span> array_end = <span class="number">0</span>;</span><br><span class="line">std::atomic_flag lock;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">push_item</span><span class="params">(<span class="type">int</span> value)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">while</span>(lock.<span class="built_in">test_and_set</span>(std::memory_order_acquire)) &#123;&#125;</span><br><span class="line">  array[array_end++] = value;</span><br><span class="line">  lock.<span class="built_in">clear</span>(std::memory_order_release);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用了标准库的atomic_flag原子类型和acquire-release语义来实现。当然，这段代码仅仅是“有效”，实际这样的实现是低效的，抛开最先讨论的用户态使用自旋锁的问题，即便不考虑中断，这里TAS原子操作需要执行写，根据MESI协议，尝试写时需要保证独占，导致自旋过程每次锁获取尝试都会触发一次总线事务，带来大量的总线流量，可能进一步导致临界区的代码减慢，延迟锁的释放。</p>
+<p>我们来看看苹果曾经对于用户态自旋锁<code>OSSpinLock</code>的实现（当然现在它已经deprecated了）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// From https://github.com/apple/darwin-libplatform/blob/master/src/os/lock.c 有部分简化</span></span><br><span class="line"><span class="type">void</span> _OSSpinLockLockSlow(<span class="keyword">volatile</span> OSSpinLock *l) &#123;</span><br><span class="line">  <span class="type">uint32_t</span> tries = OS_LOCK_SPIN_SPIN_TRIES; <span class="comment">// tries = 1000</span></span><br><span class="line">  OSSpinLock lock;</span><br><span class="line">  <span class="keyword">while</span> (unlikely(lock = *l)) &#123;</span><br><span class="line">_spin:</span><br><span class="line">    <span class="keyword">if</span> (unlikely(lock != _OSSpinLockLocked)) &#123;</span><br><span class="line">      <span class="keyword">return</span> _os_lock_corruption_abort((<span class="type">void</span> *)l, (<span class="type">uintptr_t</span>)lock);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (unlikely(!tries--)) <span class="keyword">return</span> _OSSpinLockLockYield(l);</span><br><span class="line">    OS_LOCK_SPIN_PAUSE();</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="type">bool</span> r = os_atomic_cmpxchgv(l, <span class="number">0</span>, _OSSpinLockLocked, &amp;lock, acquire);</span><br><span class="line">  <span class="keyword">if</span> (likely(r)) <span class="keyword">return</span>;</span><br><span class="line">  <span class="keyword">goto</span> _spin;</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">OSSpinLockLock</span><span class="params">(<span class="keyword">volatile</span> OSSpinLock *l)</span> &#123;</span><br><span class="line">  <span class="type">bool</span> r = os_atomic_cmpxchg(l, <span class="number">0</span>, _OSSpinLockLocked, acquire);</span><br><span class="line">  <span class="keyword">if</span> (likely(r)) <span class="keyword">return</span>;</span><br><span class="line">  <span class="keyword">return</span> _OSSpinLockLockSlow(l);</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">OSSpinLockUnlock</span><span class="params">(<span class="keyword">volatile</span> OSSpinLock *l)</span> &#123;</span><br><span class="line">  os_atomic_store(l, <span class="number">0</span>, release);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>复杂了很多，主要是多了几个优化点：</p>
+<ol>
+<li>Lock时，执行带<em>acquire</em>语义的首次CAS操作，如果成功上锁直接返回</li>
+<li>自旋过程仅仅执行读操作，不会每次都使用CAS来触发修改请求</li>
+<li>自旋过程并不是空转，而会调用<code>OS_LOCK_SPIN_PAUSE()</code>，它对应到x86的<code>pause</code> &#x2F; ARM的<code>yield</code>指令，用于指示CPU当前处于自旋等待的场景，以优化内存&#x2F;缓存访问 [9] [10]</li>
+<li>自旋次数有限制，循环1000次之后，会通过调用<code>_OSSpinLockLockYield</code>，这个函数会调用XNU的接口<code>thread_switch</code>主动放弃时间片，切换线程</li>
+</ol>
+<h2 id="无锁编程"><a href="#无锁编程" class="headerlink" title="无锁编程"></a>无锁编程</h2><p>实际上，<code>code case 13</code>的需求只是在一个数组后面不考虑顺序地插入一个元素，完全可以不依赖锁：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;atomic&gt;</span></span></span><br><span class="line"><span class="type">int</span> array[ARRAY_MAX_SIZE]; </span><br><span class="line">std::atomic&lt;<span class="type">int</span>&gt; array_end;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">push_item</span><span class="params">(<span class="type">int</span> value)</span> </span>&#123;</span><br><span class="line">  <span class="type">int</span> end = array_end.<span class="built_in">fetch_add</span>(std::memory_order_acquire);</span><br><span class="line">  array[end] = value;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这就是所谓的无锁（<em>lock-free</em>）编程，通过原子变量和控制memory order避免互斥量的使用，通常用在对性能要求很高的代码，如操作系统内核。有很多无锁数据结构的实现，如[8] - 第7章实现的无锁线程安全栈和队列。</p>
+<p>无锁编程是一件比较有挑战性的工作，如果实现不当可能可能会带来性能和安全问题，如ABA问题和乒乓缓存[8]，到这里我的学习了解就比较少了，不再作更多介绍。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>[1] <a target="_blank" rel="noopener" href="https://blog.postmates.com/why-spinlocks-are-bad-on-ios-b69fc5221058">Why Spinlocks Are Bad On iOS</a></p>
+<p>[2] Paul E. McKenney. Memory Barriers: a Hardware View for Software Hackers</p>
+<p>[3] Y Solihin. Fundamental of Parallel Multicore Architechture</p>
+<p>[4] <a target="_blank" rel="noopener" href="https://developer.arm.com/docs/den0024/a/introduction">ARM Cortex-A Series Programmer’s Guide for ARMv8-A</a></p>
+<p>[5] <a target="_blank" rel="noopener" href="https://developer.arm.com/docs/100934/0100/exclusive-access-instructions">ARMv8-A synchronization primitives</a></p>
+<p>[6] <a target="_blank" rel="noopener" href="https://www.intel.cn/content/www/cn/zh/architecture-and-technology/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.html">Intel 64 and IA-32 Architectures Developer’s Manual: Vol. 3A</a></p>
+<p>[7] x86-TSO: A Rigorous and Usable Programmer’s Model for x86 Multiprocessors</p>
+<p>[8] Anthony Williams. C++ Concurrency in Action Second Edition</p>
+<p>[9] <a target="_blank" rel="noopener" href="https://stackoverflow.com/questions/4725676/how-does-x86-pause-instruction-work-in-spinlock-and-can-it-be-used-in-other-sc">How does x86 pause instruction work in spinlock <em>and</em> can it be used in other scenarios?</a></p>
+<p>[10] <a target="_blank" rel="noopener" href="https://developer.arm.com/docs/ddi0596/e/base-instructions-alphabetic-order/yield-yield">Arm® A64 Instruction Set Architecture: YIELD</a></p>
+
+  </div>
+</article>
+
+    <div class="blog-post-comments">
+        <div id="disqus_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+        
+          <li><a href="/">首页</a></li>
+        
+          <li><a href="/about/">关于</a></li>
+        
+          <li><a href="/archives/">归档</a></li>
+        
+          <li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li>
+        
+      </ul>
+    </div>
+
+    
+    
+      <div id="toc-footer" style="display: none">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BA%BF%E7%A8%8B%E5%90%8C%E6%AD%A5"><span class="toc-number">2.</span> <span class="toc-text">线程同步</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%87%AA%E6%97%8B%E9%94%81"><span class="toc-number">3.</span> <span class="toc-text">自旋锁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C-%E6%8C%87%E4%BB%A4"><span class="toc-number">4.</span> <span class="toc-text">原子操作&#x2F;指令</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7"><span class="toc-number">4.1.</span> <span class="toc-text">缓存一致性</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#cache%E7%AE%80%E4%BB%8B"><span class="toc-number">4.1.1.</span> <span class="toc-text">cache简介</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E8%AF%BB%E5%86%99%E7%AD%96%E7%95%A5"><span class="toc-number">4.1.2.</span> <span class="toc-text">读写策略</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#MESI%E5%8D%8F%E8%AE%AE"><span class="toc-number">4.1.3.</span> <span class="toc-text">MESI协议</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">原子操作实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%94%81%E6%80%BB%E7%BA%BF"><span class="toc-number">4.2.1.</span> <span class="toc-text">锁总线</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#LL-SC"><span class="toc-number">4.2.2.</span> <span class="toc-text">LL&#x2F;SC</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8C%87%E4%BB%A4%E9%87%8D%E6%8E%92"><span class="toc-number">5.</span> <span class="toc-text">指令重排</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.</span> <span class="toc-text">内存一致性模型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%BA%E5%BA%8F%E4%B8%80%E8%87%B4%E6%80%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.1.</span> <span class="toc-text">顺序一致性模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#TSO%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.2.</span> <span class="toc-text">TSO模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%B1%E4%B8%80%E8%87%B4%E6%80%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">6.3.</span> <span class="toc-text">弱一致性模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E5%B1%8F%E9%9A%9C"><span class="toc-number">7.</span> <span class="toc-text">内存屏障</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#X86"><span class="toc-number">7.1.</span> <span class="toc-text">X86</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#ARM"><span class="toc-number">7.2.</span> <span class="toc-text">ARM</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#C-11%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B"><span class="toc-number">8.</span> <span class="toc-text">C++11内存模型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%9F%E5%AD%90%E7%B1%BB%E5%9E%8B"><span class="toc-number">8.1.</span> <span class="toc-text">原子类型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%86%85%E5%AD%98%E5%BA%8F"><span class="toc-number">8.2.</span> <span class="toc-text">内存序</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%8D%E7%9C%8B%E8%87%AA%E6%97%8B%E9%94%81"><span class="toc-number">9.</span> <span class="toc-text">再看自旋锁</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%97%A0%E9%94%81%E7%BC%96%E7%A8%8B"><span class="toc-number">10.</span> <span class="toc-text">无锁编程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-number">11.</span> <span class="toc-text">参考资料</span></a></li></ol>
+      </div>
+    
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/parallel_fundamental/"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/parallel_fundamental/&text=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/parallel_fundamental/&is_video=false&description=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=多核并行基础 —— 从线程同步到多核CPU&body=Check out this article: http://bersl.github.io/parallel_fundamental/"><i class="fa-solid fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/parallel_fundamental/&title=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/parallel_fundamental/&name=多核并行基础 —— 从线程同步到多核CPU&description="><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/parallel_fundamental/&t=多核并行基础 —— 从线程同步到多核CPU"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        
+          <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2023
+    Bers Liu
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script>
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script>
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板！\">";
+    btn += '<i class="fa-regular fa-clone"></i>';
+    btn += '</span>';
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功！");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Disqus Comments -->
+
+    <script type="text/javascript">
+        var disqus_shortname = 'bers-blog';
+
+        (function(){
+            var dsq = document.createElement('script');
+            dsq.type = 'text/javascript';
+            dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        }());
+    </script>
+
+<!-- utterances Comments -->
+
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="需求通常情况下，我们使用target-action模式为UIControl类型的对象设置触发事件: 1control.addTarget(target, action: Selctor(&quot;someAction:&quot;), forControlEvents: event) 很多时候，对于一些触发的事件较为简单的控件，我们希望有一种更简单的方式： 123control.trigger(">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Swift实现UIControl绑定触发事件">
+<meta property="og:url" content="http://bersl.github.io/swift_uicontrol_trigger/index.html">
+<meta property="og:site_name" content="Bers的个人博客">
+<meta property="og:description" content="需求通常情况下，我们使用target-action模式为UIControl类型的对象设置触发事件: 1control.addTarget(target, action: Selctor(&quot;someAction:&quot;), forControlEvents: event) 很多时候，对于一些触发的事件较为简单的控件，我们希望有一种更简单的方式： 123control.trigger(">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2015-12-09T18:17:54.000Z">
+<meta property="article:modified_time" content="2023-08-16T09:19:06.011Z">
+<meta property="article:author" content="Bers Liu">
+<meta property="article:tag" content="iOS">
+<meta property="article:tag" content="swift">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+        
+      
+    
+    <!-- title -->
+    <title>Swift实现UIControl绑定触发事件</title>
+    <!-- async scripts -->
+    <!-- Google Analytics -->
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-167200849-1"></script>
+  <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'UA-167200849-1');
+  </script>
+
+
+    <!-- Umami Analytics -->
+
+
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="顶部" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fa-solid fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="上一篇" href="/simple_autoreuse_pool/"><i class="fa-solid fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="返回顶部" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" aria-label="分享文章" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/swift_uicontrol_trigger/"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/swift_uicontrol_trigger/&text=Swift实现UIControl绑定触发事件"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/swift_uicontrol_trigger/&is_video=false&description=Swift实现UIControl绑定触发事件"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=Swift实现UIControl绑定触发事件&body=Check out this article: http://bersl.github.io/swift_uicontrol_trigger/"><i class="fa-solid fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/swift_uicontrol_trigger/&name=Swift实现UIControl绑定触发事件&description="><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/swift_uicontrol_trigger/&t=Swift实现UIControl绑定触发事件"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    
+    
+      <div id="toc">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%9C%80%E6%B1%82"><span class="toc-number">1.</span> <span class="toc-text">需求</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0"><span class="toc-number">2.</span> <span class="toc-text">实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8F%96%E5%BE%97%E8%A7%A6%E5%8F%91%E7%9A%84UIControlEvents"><span class="toc-number">2.0.1.</span> <span class="toc-text">取得触发的UIControlEvents</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="toc-number">3.</span> <span class="toc-text">注意事项</span></a></li></ol>
+      </div>
+    
+  </span>
+</div>
+
+    
+    <div class="content index py4 ">
+        
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle p-name" itemprop="name headline">
+        Swift实现UIControl绑定触发事件
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span class="p-name" itemprop="name">Bers Liu</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2015-12-09T18:17:54.000Z" class="dt-published" itemprop="datePublished">2015-12-10</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fa-solid fa-tag"></i>
+        <a class="p-category" href="/tags/iOS/" rel="tag">iOS</a>, <a class="p-category" href="/tags/swift/" rel="tag">swift</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content e-content" itemprop="articleBody">
+    <h2 id="需求"><a href="#需求" class="headerlink" title="需求"></a>需求</h2><p>通常情况下，我们使用target-action模式为UIControl类型的对象设置触发事件:</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">control.addTarget(target, action: <span class="type">Selctor</span>(<span class="string">&quot;someAction:&quot;</span>), forControlEvents: event)</span><br></pre></td></tr></table></figure>
+<p>很多时候，对于一些触发的事件较为简单的控件，我们希望有一种更简单的方式：<br/></p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">control.trigger(&#123; (sender) -&gt; <span class="type">Void</span> <span class="keyword">in</span></span><br><span class="line">  <span class="comment">//do something</span></span><br><span class="line">&#125;, onEvent: event)</span><br></pre></td></tr></table></figure>
+<p>出于(<del>偷懒</del>)精简代码的目的，我们为<code>UIControl</code>添加扩展来实现这一功能<br/><br>我们需要实现以下两个接口：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">func</span> <span class="title function_">trigger</span>(<span class="params">closure</span>:((<span class="type">UIControl</span>)-&gt;<span class="type">Void</span>), <span class="params">onEvent</span> <span class="params">event</span>:<span class="type">UIControlEvents</span>)</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">func</span> <span class="title function_">removeOnEvent</span>(<span class="params">event</span>: <span class="type">UIControlEvents</span>)</span><br></pre></td></tr></table></figure>
+<p>实现这一功能的大致的思路如下：<br/><br>利用字典保存不同的event对应需要触发的事件，为这个事件添加一个target为自身的action，调用另一个方法，该方法从字典中取得所触发事件对应的闭包并调用。</p>
+<hr>
+<h2 id="实现"><a href="#实现" class="headerlink" title="实现"></a>实现</h2><p>为了保存对应不同event的闭包，我们需要为<code>UIControl</code>添加一个<code>Dictionary</code>属性:</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">var</span> bs_closuresDictionary : [<span class="type">UInt</span> : <span class="type">ClosureWrapper</span>&lt;<span class="type">UIControl</span>, <span class="type">Void</span>&gt;]<span class="operator">!</span> &#123;</span><br><span class="line">     <span class="keyword">get</span>&#123;</span><br><span class="line">         <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, <span class="operator">&amp;</span><span class="type">AssociatedKey</span>.<span class="type">ClosuresDictionary</span>) <span class="keyword">as?</span> [<span class="type">UInt</span> :<span class="type">ClosureWrapper</span>&lt;<span class="type">UIControl</span>, <span class="type">Void</span>&gt;]</span><br><span class="line">     &#125;</span><br><span class="line">     <span class="keyword">set</span>&#123;</span><br><span class="line">         <span class="keyword">let</span> dict <span class="operator">=</span> newValue <span class="keyword">as</span> <span class="type">NSDictionary</span>?</span><br><span class="line">         objc_setAssociatedObject(<span class="keyword">self</span>, <span class="operator">&amp;</span><span class="type">AssociatedKey</span>.<span class="type">ClosuresDictionary</span>, dict, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_RETAIN_NONATOMIC</span>)</span><br><span class="line">     &#125; </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里用到了关联对象，需要import <code>ObjectiveC</code>模块，定义了一个嵌套struct <code>Asscociated</code>来保存关键字<br/><br>其中，利用<code>ClosureWrapper</code>类型将<code>Closure</code>封装成对象：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">ClosureWrapper</span>&lt;<span class="title class_">T</span>, <span class="title class_">R</span>&gt; &#123;</span><br><span class="line">    <span class="keyword">var</span> _closure: ((<span class="type">T</span>) -&gt; <span class="type">R</span>)<span class="operator">?</span></span><br><span class="line">    <span class="keyword">var</span> closure: ((<span class="type">T</span>) -&gt; <span class="type">R</span>)<span class="operator">?</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">self</span>._closure</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">init</span>(<span class="keyword">_</span> <span class="params">closure</span>: ((<span class="type">T</span>) -&gt; <span class="type">R</span>)<span class="operator">?</span>) &#123;</span><br><span class="line">        <span class="keyword">self</span>._closure <span class="operator">=</span> closure</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来，就可以实现目标接口了：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">func</span> <span class="title function_">trigger</span>(<span class="params">closure</span>:((<span class="type">UIControl</span>)-&gt;<span class="type">Void</span>), <span class="params">onEvent</span> <span class="params">event</span>:<span class="type">UIControlEvents</span>)&#123;</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">self</span>.bs_closuresDictionary <span class="operator">==</span> <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">self</span>.bs_closuresDictionary <span class="operator">=</span> [<span class="type">UInt</span> : <span class="type">ClosureWrapper</span>&lt;<span class="type">UIControl</span>, <span class="type">Void</span>&gt;]()</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">self</span>.removeOnEvent(event)</span><br><span class="line">    <span class="keyword">self</span>.bs_closuresDictionary[event.rawValue] <span class="operator">=</span> <span class="type">ClosureWrapper</span>&lt;<span class="type">UIControl</span>, <span class="type">Void</span>&gt;(closure);</span><br><span class="line">    <span class="keyword">self</span>.addTarget(<span class="keyword">self</span>, action: <span class="type">Selector</span>(<span class="string">&quot;targetTriggered:forEvent:&quot;</span>), forControlEvents: event)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>然后实现<code>targetTriggered:forEvent:</code>方法，从字典中获得所触发的<code>UIControlEvents</code>对应的闭包并调用。嗯，看起来似乎就这么结束了。</p>
+<h4 id="取得触发的UIControlEvents"><a href="#取得触发的UIControlEvents" class="headerlink" title="取得触发的UIControlEvents"></a>取得触发的UIControlEvents</h4><p>这里有一个问题，如何在target中获得当前所触发的UIControlEvents事件？UIContorl中添加action被触发后的回调仅有两个参数：sender和event，无法从中得知是什么事件被触发。<br>所以，我们需要为每个添加了触发事件的event另外添加一个action，该action在传入的闭包前被调用，记录被触发的event。<br>由于target-action对应设计模式的原因，我们是无法在action中得到是什么事件被触发的，所以我们需要对每一个UIControlEvents事件都增加一个方法来记录：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">class</span> <span class="title class_">TriggerdEventsHelper</span> &#123;</span><br><span class="line">    <span class="keyword">var</span> _event : <span class="type">UIControlEvents</span>!</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">var</span> event : <span class="type">UIControlEvents</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">self</span>._event;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">@objc</span> <span class="keyword">func</span> <span class="title function_">touchDownSelector</span>() &#123;</span><br><span class="line">        <span class="keyword">self</span>._event <span class="operator">=</span> .<span class="type">TouchDown</span>;</span><br><span class="line">    &#125;</span><br><span class="line"> </span><br><span class="line">    <span class="keyword">@objc</span> <span class="keyword">func</span> <span class="title function_">touchDownRepeatSelector</span>() &#123;</span><br><span class="line">        <span class="keyword">self</span>._event <span class="operator">=</span> .<span class="type">TouchDownRepeat</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ......</span></span><br><span class="line">    <span class="comment">// 剩余的UIControlEvents对应的方法</span></span><br><span class="line">    <span class="comment">// ......</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">func</span> <span class="title function_">selectorForEvent</span>(<span class="params">event</span>:<span class="type">UIControlEvents</span>) -&gt; <span class="type">Selector</span> &#123;</span><br><span class="line">        <span class="keyword">switch</span>(event)&#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">UIControlEvents</span>.<span class="type">TouchDown</span>:</span><br><span class="line">            <span class="keyword">return</span> <span class="type">Selector</span>(<span class="string">&quot;touchDownSelector&quot;</span>)</span><br><span class="line">        <span class="keyword">case</span> <span class="type">UIControlEvents</span>.<span class="type">TouchDownRepeat</span>:</span><br><span class="line">            <span class="keyword">return</span> <span class="type">Selector</span>(<span class="string">&quot;touchDownRepeatSelector&quot;</span>)</span><br><span class="line">        <span class="keyword">case</span> <span class="type">UIControlEvents</span>.<span class="type">TouchDragInside</span>:</span><br><span class="line">            <span class="keyword">return</span> <span class="type">Selector</span>(<span class="string">&quot;touchDragInsideSelector&quot;</span>);</span><br><span class="line">        <span class="comment">// ......</span></span><br><span class="line">        <span class="comment">// 剩余的UIControlEvents对应的case</span></span><br><span class="line">        <span class="comment">// ......</span></span><br><span class="line">        <span class="keyword">default</span>:</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">nil</span>;</span><br><span class="line">        &#125;   </span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>需要注意的是，由于要使用这些方法的动态特性，所以每个用于记录event的方法都要用@objc修饰，更多有关此修饰符可见<a target="_blank" rel="noopener" href="http://swifter.tips/objc-dynamic/">此处</a><br></p>
+</blockquote>
+<p>然后在UIControl的extension中添加该类型的属性：</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">var</span> bs_triggeredEvent : <span class="type">TriggerdEventsHelper</span>!&#123;</span><br><span class="line">    <span class="keyword">get</span>&#123;</span><br><span class="line">        <span class="keyword">return</span> objc_getAssociatedObject(<span class="keyword">self</span>, <span class="operator">&amp;</span><span class="type">AssociatedKey</span>.triggeredEvent) <span class="keyword">as?</span> <span class="type">TriggerdEventsHelper</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">set</span>&#123;</span><br><span class="line">        objc_setAssociatedObject(<span class="keyword">self</span>, <span class="operator">&amp;</span><span class="type">AssociatedKey</span>.triggeredEvent, newValue, objc_AssociationPolicy.<span class="type">OBJC_ASSOCIATION_RETAIN_NONATOMIC</span>)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<hr>
+<h2 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h2><p>接下来就可以直接对所有<code>UIControl</code>对象调用改方法了，不过需要注意的是由于UIControl会持有传入的闭包，在如果某个类持有了该<code>UIControl</code>对象，传入的闭包中如果引用了self，需要在捕获列表中添加通过weak或unowned方式捕获self，防止出现引用循环。</p>
+
+  </div>
+</article>
+
+    <div class="blog-post-comments">
+        <div id="disqus_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+        
+          <li><a href="/">首页</a></li>
+        
+          <li><a href="/about/">关于</a></li>
+        
+          <li><a href="/archives/">归档</a></li>
+        
+          <li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li>
+        
+      </ul>
+    </div>
+
+    
+    
+      <div id="toc-footer" style="display: none">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%9C%80%E6%B1%82"><span class="toc-number">1.</span> <span class="toc-text">需求</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0"><span class="toc-number">2.</span> <span class="toc-text">实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8F%96%E5%BE%97%E8%A7%A6%E5%8F%91%E7%9A%84UIControlEvents"><span class="toc-number">2.0.1.</span> <span class="toc-text">取得触发的UIControlEvents</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="toc-number">3.</span> <span class="toc-text">注意事项</span></a></li></ol>
+      </div>
+    
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/swift_uicontrol_trigger/"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/swift_uicontrol_trigger/&text=Swift实现UIControl绑定触发事件"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/swift_uicontrol_trigger/&is_video=false&description=Swift实现UIControl绑定触发事件"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=Swift实现UIControl绑定触发事件&body=Check out this article: http://bersl.github.io/swift_uicontrol_trigger/"><i class="fa-solid fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/swift_uicontrol_trigger/&title=Swift实现UIControl绑定触发事件"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/swift_uicontrol_trigger/&name=Swift实现UIControl绑定触发事件&description="><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/swift_uicontrol_trigger/&t=Swift实现UIControl绑定触发事件"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        
+          <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2023
+    Bers Liu
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script>
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script>
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板！\">";
+    btn += '<i class="fa-regular fa-clone"></i>';
+    btn += '</span>';
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功！");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Disqus Comments -->
+
+    <script type="text/javascript">
+        var disqus_shortname = 'bers-blog';
+
+        (function(){
+            var dsq = document.createElement('script');
+            dsq.type = 'text/javascript';
+            dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        }());
+    </script>
+
+<!-- utterances Comments -->
+
+</body>
+</html>

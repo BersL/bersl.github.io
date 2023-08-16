@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="前段时间做安装包大小分析时，为了解大量使用到的智能指针展开情况，对libc++的shared_ptr、weak_ptr及相关实现作了一些分析，这里整理相关笔记。 shared_ptrmemory layout12345678template&lt;class _Tp&gt;class shared_ptr &amp;#123;private:    element_type*      __ptr_;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="libc++ 智能指针实现分析">
+<meta property="og:url" content="http://bersl.github.io/libcxx-sharedptr/index.html">
+<meta property="og:site_name" content="Bers的个人博客">
+<meta property="og:description" content="前段时间做安装包大小分析时，为了解大量使用到的智能指针展开情况，对libc++的shared_ptr、weak_ptr及相关实现作了一些分析，这里整理相关笔记。 shared_ptrmemory layout12345678template&lt;class _Tp&gt;class shared_ptr &amp;#123;private:    element_type*      __ptr_;">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-08-01T05:40:11.000Z">
+<meta property="article:modified_time" content="2023-08-16T10:10:19.658Z">
+<meta property="article:author" content="Bers Liu">
+<meta property="article:tag" content="C++">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+        
+      
+    
+    <!-- title -->
+    <title>libc++ 智能指针实现分析</title>
+    <!-- async scripts -->
+    <!-- Google Analytics -->
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-167200849-1"></script>
+  <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'UA-167200849-1');
+  </script>
+
+
+    <!-- Umami Analytics -->
+
+
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="顶部" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fa-solid fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        
+        <li><a class="icon" aria-label="下一篇" href="/parallel_fundamental/"><i class="fa-solid fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="返回顶部" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" aria-label="分享文章" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/libcxx-sharedptr/"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/libcxx-sharedptr/&text=libc++ 智能指针实现分析"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/libcxx-sharedptr/&is_video=false&description=libc++ 智能指针实现分析"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=libc++ 智能指针实现分析&body=Check out this article: http://bersl.github.io/libcxx-sharedptr/"><i class="fa-solid fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/libcxx-sharedptr/&name=libc++ 智能指针实现分析&description="><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/libcxx-sharedptr/&t=libc++ 智能指针实现分析"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    
+    
+      <div id="toc">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#shared-ptr"><span class="toc-number">1.</span> <span class="toc-text">shared_ptr</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#memory-layout"><span class="toc-number">1.1.</span> <span class="toc-text">memory layout</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E5%AF%B9%E8%B1%A1%E6%8A%BD%E8%B1%A1%E7%B1%BB%EF%BC%9A-shared-weak-count"><span class="toc-number">1.1.1.</span> <span class="toc-text">引用计数对象抽象类：__shared_weak_count</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E7%9B%B8%E5%85%B3%E6%93%8D%E4%BD%9C"><span class="toc-number">1.1.2.</span> <span class="toc-text">引用计数相关操作</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%84%E9%80%A0"><span class="toc-number">1.2.</span> <span class="toc-text">构造</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E5%AF%B9%E8%B1%A1"><span class="toc-number">1.2.1.</span> <span class="toc-text">引用计数对象</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#weak-ptr"><span class="toc-number">2.</span> <span class="toc-text">weak_ptr</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#memory-layout-1"><span class="toc-number">2.1.</span> <span class="toc-text">memory layout</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%84%E9%80%A0-1"><span class="toc-number">2.2.</span> <span class="toc-text">构造</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#lock%E6%88%90%E5%91%98%E5%87%BD%E6%95%B0"><span class="toc-number">2.3.</span> <span class="toc-text">lock成员函数</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#shared-from-this"><span class="toc-number">3.</span> <span class="toc-text">shared_from_this</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">4.</span> <span class="toc-text">总结</span></a></li></ol>
+      </div>
+    
+  </span>
+</div>
+
+    
+    <div class="content index py4 ">
+        
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle p-name" itemprop="name headline">
+        libc++ 智能指针实现分析
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span class="p-name" itemprop="name">Bers Liu</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2021-08-01T05:40:11.000Z" class="dt-published" itemprop="datePublished">2021-08-01</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fa-solid fa-tag"></i>
+        <a class="p-category" href="/tags/C/" rel="tag">C++</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content e-content" itemprop="articleBody">
+    <p>前段时间做安装包大小分析时，为了解大量使用到的智能指针展开情况，对libc++的shared_ptr、weak_ptr及相关实现作了一些分析，这里整理相关笔记。</p>
+<h2 id="shared-ptr"><a href="#shared-ptr" class="headerlink" title="shared_ptr"></a>shared_ptr</h2><h3 id="memory-layout"><a href="#memory-layout" class="headerlink" title="memory layout"></a>memory layout</h3><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">shared_ptr</span> &#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    element_type*      __ptr_;</span><br><span class="line">    __shared_weak_count* __cntrl_;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">__nat</span> &#123;<span class="type">int</span> __for_bool_;&#125;;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到有3个成员，包括：</p>
+<ol>
+<li>被封装的原指针</li>
+<li>保存有引用计数对象的地址</li>
+<li>目前已经没有用到的整型成员。这里应该是历史实现有用到，为了ABI兼容而保留的。</li>
+</ol>
+<h4 id="引用计数对象抽象类：-shared-weak-count"><a href="#引用计数对象抽象类：-shared-weak-count" class="headerlink" title="引用计数对象抽象类：__shared_weak_count"></a>引用计数对象抽象类：__shared_weak_count</h4><p>先上经过裁剪的代码，展示对象的layout和接口。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">__shared_weak_count</span> : <span class="keyword">private</span> __shared_count &#123;</span><br><span class="line">  <span class="type">long</span> __shared_weak_owners_;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="keyword">explicit</span> __shared_weak_count(<span class="type">long</span> __refs = <span class="number">0</span>);</span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">    <span class="keyword">virtual</span> ~__shared_weak_count();</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="type">void</span> __add_shared();</span><br><span class="line">    <span class="type">void</span> __add_weak();</span><br><span class="line">    <span class="type">void</span> __release_shared();</span><br><span class="line">    <span class="type">void</span> __release_weak();</span><br><span class="line">    <span class="function"><span class="type">long</span> <span class="title">use_count</span><span class="params">()</span> <span class="type">const</span></span>;</span><br><span class="line">    <span class="function">__shared_weak_count* <span class="title">lock</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">const</span> <span class="type">void</span>* __get_deleter(<span class="type">const</span> type_info&amp;) <span class="type">const</span>;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">void</span> __on_zero_shared_weak() = <span class="number">0</span>;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">__shared_count</span> &#123;</span><br><span class="line">    __shared_count(<span class="type">const</span> __shared_count&amp;);</span><br><span class="line">    __shared_count&amp; <span class="keyword">operator</span>=(<span class="type">const</span> __shared_count&amp;);</span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">    <span class="type">long</span> __shared_count;</span><br><span class="line">    <span class="keyword">virtual</span> ~__shared_count();</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">void</span> __on_zero_shared() = <span class="number">0</span>;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="keyword">explicit</span> __shared_count(<span class="type">long</span> __refs = <span class="number">0</span>);</span><br><span class="line">    <span class="type">void</span> __add_shared();</span><br><span class="line">    <span class="type">bool</span> __release_shared();</span><br><span class="line">    <span class="function"><span class="type">long</span> <span class="title">use_count</span><span class="params">()</span> <span class="type">const</span></span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>可以得到如下信息：</p>
+<ol>
+<li>基类<code>__shared_count</code>实现了对强引用计数的相关操作；<code>__shared_weak_count</code>作为派生类扩展了对弱引用的支持并实现相关操作；</li>
+<li><code>__shared_weak_count</code>包含两个long成员，分别为保存弱引用计数的<code>__shared_weak_owners_</code>和继承自<code>__shared_count</code>，保存强引用计数的<code>__shared_count</code>；</li>
+<li><code>__shared_weak_count</code>被实现为一个<strong>抽象类</strong>而非模板类，包含两个纯虚函数。阅读源码可知，<code>__on_zero_shared_weak</code>在所有所有强弱引用指针被释放后调用；<code>__on_zero_shared</code>在所有强引用指针被释放后调用。</li>
+</ol>
+<h4 id="引用计数相关操作"><a href="#引用计数相关操作" class="headerlink" title="引用计数相关操作"></a>引用计数相关操作</h4><p>引用计数本身概念很简单，强持有（对应一个shared_ptr对象的构造）引用计数+1，取消强持有（对应一个shared_ptr对象的析构）引用计数-1。引用计数被减为0时，调用<code>__on_zero_shared</code>来释放所管理的对象。</p>
+<p>为了保证线程安全，libc++采用C++11的原子操作来管理引用计数，实现如下：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> __add_shared() _NOEXCEPT &#123;</span><br><span class="line">  __libcpp_atomic_refcount_increment(__shared_owners_);</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">bool</span> __release_shared() _NOEXCEPT &#123;</span><br><span class="line">  <span class="keyword">if</span> (__libcpp_atomic_refcount_decrement(__shared_owners_) == <span class="number">-1</span>) &#123;</span><br><span class="line">    __on_zero_shared();</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="type">long</span> <span class="title">use_count</span><span class="params">()</span> <span class="type">const</span> _NOEXCEPT </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> __libcpp_relaxed_load(&amp;__shared_owners_) + <span class="number">1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>__add_shared</code>为增加引用计数的操作。<code>__libcpp_atomic_refcount_increment</code>被实现为relaxed内存序的原子fetch_add 1，因为这里只需要保证「计数+1」这个操作是原子的即可。</p>
+<p><code>__release_shared</code>为减少引用计数的操作。<code>__libcpp_atomic_refcount_decrement</code>被实现为ACQ_REL内存序的原子fetch_sub 1操作，因为除了要保证「计数-1」操作的原子性，还需要保证load操作带有aquire语义，避免后续的<code>__on_zero_shared()</code>被重排到操作前。</p>
+<p><code>use_count</code>为读取当前引用计数的操作。<code>__libcpp_relaxed_load</code>被实现为relaxed内存序的原子读操作。</p>
+<p>以上有关C++11内存序（memory order）的介绍可阅读我的另一篇文章，<a href="/parallel_fundamental/" title="多核并行基础 —— 从线程同步到多核CPU">多核并行基础</a>。</p>
+<p>类似的，<code>__shared_weak_count</code>类对于弱引用的支持也是通过对弱引用计数执行相似的原子操作实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> __add_weak() _NOEXCEPT &#123;</span><br><span class="line">  __libcpp_atomic_refcount_increment(__shared_weak_owners_);</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> __shared_weak_count::__release_weak() <span class="keyword">noexcept</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (__libcpp_atomic_load(&amp;__shared_weak_owners_, _AO_Acquire) == <span class="number">0</span>) &#123;</span><br><span class="line">        __on_zero_shared_weak();</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (__libcpp_atomic_refcount_decrement(__shared_weak_owners_) == <span class="number">-1</span>)</span><br><span class="line">        __on_zero_shared_weak();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="构造"><a href="#构造" class="headerlink" title="构造"></a>构造</h3><p>通过查看shared_ptr的数据成员我们可以大致猜测，构造shared_ptr对象需要一个裸指针和一个引用计数对象。</p>
+<p>首先来看直接使用裸指针的构造函数：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>&gt;</span><br><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Yp</span>&gt;</span><br><span class="line">shared_ptr&lt;_Tp&gt;::<span class="built_in">shared_ptr</span>(_Yp* __p,</span><br><span class="line">                            <span class="keyword">typename</span> enable_if&lt;__compatible_with&lt;_Yp, element_type&gt;::value, __nat&gt;::type)</span><br><span class="line">    : __ptr_(__p)</span><br><span class="line">&#123;</span><br><span class="line">    unique_ptr&lt;_Yp&gt; __hold(__p);</span><br><span class="line">    <span class="keyword">typedef</span> <span class="keyword">typename</span> __shared_ptr_default_allocator&lt;_Yp&gt;::type _AllocT;</span><br><span class="line">    <span class="keyword">typedef</span> __shared_ptr_pointer&lt;_Yp*, __shared_ptr_default_delete&lt;_Tp, _Yp&gt;, _AllocT &gt; _CntrlBlk;</span><br><span class="line">    __cntrl_ = <span class="keyword">new</span> _CntrlBlk(__p, __shared_ptr_default_delete&lt;_Tp, _Yp&gt;(), _AllocT());</span><br><span class="line">    __hold.<span class="built_in">release</span>();</span><br><span class="line">    __enable_weak_this(__p, __p);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>梳理一下掰开来看，可以得到这些信息：</p>
+<ol>
+<li>接受一个<code>_Yp*</code>参数。第二个参数为利用SFINAE保证<code>_Yp*</code>是可以转为<code>_Tp*</code>类型的，在构造函数声明中给了一个默认值。因此构造只需要传入<code>_Yp*</code>参数；</li>
+<li>new了一个引用计数对象，为<code>__shared_ptr_pointer</code>类型；</li>
+<li>调用<code>__enable_weak_this</code>以提供对<code>std::enable_shared_from_this</code>的支持；</li>
+<li>std::shared_ptr的两个指针类型成员，即<code>__ptr_</code>和<code>__cntrl_</code>分别被原始指针和2中新分配的引用计数对象初始化。</li>
+</ol>
+<p>再来看make_shared的实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">template</span>&lt;<span class="keyword">class</span> _Tp, <span class="keyword">class</span> ..._Args&gt;</span></span><br><span class="line"><span class="function"><span class="title">make_shared</span><span class="params">(_Args&amp;&amp; ...__args)</span> </span>&#123;</span><br><span class="line">    <span class="built_in">static_assert</span>(is_constructible&lt;_Tp, _Args...&gt;::value, <span class="string">&quot;Can&#x27;t construct object in make_shared&quot;</span>);</span><br><span class="line">    <span class="keyword">typedef</span> __shared_ptr_emplace&lt;_Tp, allocator&lt;_Tp&gt; &gt; _CntrlBlk;</span><br><span class="line">    <span class="keyword">typedef</span> allocator&lt;_CntrlBlk&gt; _A2;</span><br><span class="line">    <span class="keyword">typedef</span> __allocator_destructor&lt;_A2&gt; _D2;</span><br><span class="line"></span><br><span class="line">    _A2 __a2;</span><br><span class="line">    unique_ptr&lt;_CntrlBlk, _D2&gt; __hold2(__a2.<span class="built_in">allocate</span>(<span class="number">1</span>), _D2(__a2, <span class="number">1</span>));  <span class="comment">// &lt;- (1)</span></span><br><span class="line">    ::<span class="keyword">new</span>(__hold2.<span class="built_in">get</span>()) _CntrlBlk(__a2, _VSTD::forward&lt;_Args&gt;(__args)...); <span class="comment">// &lt;- (2)</span></span><br><span class="line"></span><br><span class="line">    _Tp *__ptr = __hold2.<span class="built_in">get</span>()-&gt;<span class="built_in">get</span>();</span><br><span class="line">    <span class="keyword">return</span> shared_ptr&lt;_Tp&gt;::__create_with_control_block(__ptr, __hold2.<span class="built_in">release</span>());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Yp</span>, <span class="keyword">class</span> <span class="title class_">_CntrlBlk</span>&gt;</span><br><span class="line"><span class="type">static</span> shared_ptr&lt;_Tp&gt;</span><br><span class="line">shared_ptr&lt;_Tp&gt;::__create_with_control_block(_Yp* __p, _CntrlBlk* __cntrl) _NOEXCEPT &#123;</span><br><span class="line">    shared_ptr&lt;_Tp&gt; __r;</span><br><span class="line">    __r.__ptr_ = __p;</span><br><span class="line">    __r.__cntrl_ = __cntrl;</span><br><span class="line">    __r.__enable_weak_this(__r.__ptr_, __r.__ptr_);</span><br><span class="line">    <span class="keyword">return</span> __r;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们知道make_shared的工作除了分配构造shared_ptr还有分配构造被管理对象，从上述代码可以知道与shared_ptr的裸指针构造函数主要不同在于：</p>
+<ol>
+<li>引用计数对象为<code>__shared_ptr_emplace</code>类型；</li>
+<li>步骤(1)先为引用计数对象和被管理对象分配内存，然后步骤(2)执行placement new来调用被管理对象的构造函数；</li>
+<li>原始对象和引用计数对象的内存被分配在了一起，然后将其地址给到两个成员<code>__ptr_</code>和<code>__cntrl_</code>。</li>
+</ol>
+<h4 id="引用计数对象"><a href="#引用计数对象" class="headerlink" title="引用计数对象"></a>引用计数对象</h4><p>首先展开来看一下裸指针构造函数的<code>__shared_ptr_pointer</code>：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>, <span class="keyword">class</span> <span class="title class_">_Dp</span>, <span class="keyword">class</span> <span class="title class_">_Alloc</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">__shared_ptr_pointer</span> : <span class="keyword">public</span> __shared_weak_count &#123;</span><br><span class="line">    __compressed_pair&lt;__compressed_pair&lt;_Tp, _Dp&gt;, _Alloc&gt; __data_;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    __shared_ptr_pointer(_Tp __p, _Dp __d, _Alloc __a)</span><br><span class="line">        :  __data_(__compressed_pair&lt;_Tp, _Dp&gt;(__p, _VSTD::<span class="built_in">move</span>(__d)), _VSTD::<span class="built_in">move</span>(__a)) &#123;&#125;</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">const</span> <span class="type">void</span>* __get_deleter(<span class="type">const</span> type_info&amp;) <span class="type">const</span> _NOEXCEPT;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">void</span> __on_zero_shared() _NOEXCEPT;</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">void</span> __on_zero_shared_weak() _NOEXCEPT;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>, <span class="keyword">class</span> <span class="title class_">_Dp</span>, <span class="keyword">class</span> <span class="title class_">_Alloc</span>&gt;</span><br><span class="line"><span class="type">void</span> __shared_ptr_pointer&lt;_Tp, _Dp, _Alloc&gt;::__on_zero_shared() _NOEXCEPT &#123;</span><br><span class="line">    __data_.<span class="built_in">first</span>().<span class="built_in">second</span>()(__data_.<span class="built_in">first</span>().<span class="built_in">first</span>());</span><br><span class="line">    __data_.<span class="built_in">first</span>().<span class="built_in">second</span>().~_Dp();</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>, <span class="keyword">class</span> <span class="title class_">_Dp</span>, <span class="keyword">class</span> <span class="title class_">_Alloc</span>&gt;</span><br><span class="line"><span class="type">void</span> __shared_ptr_pointer&lt;_Tp, _Dp, _Alloc&gt;::__on_zero_shared_weak() _NOEXCEPT &#123;</span><br><span class="line">    <span class="keyword">typedef</span> <span class="keyword">typename</span> __allocator_traits_rebind&lt;_Alloc, __shared_ptr_pointer&gt;::type _Al;</span><br><span class="line">    <span class="keyword">typedef</span> allocator_traits&lt;_Al&gt; _ATraits;</span><br><span class="line">    <span class="keyword">typedef</span> pointer_traits&lt;<span class="keyword">typename</span> _ATraits::pointer&gt; _PTraits;</span><br><span class="line"></span><br><span class="line">    _Al __a(__data_.<span class="built_in">second</span>());</span><br><span class="line">    __data_.<span class="built_in">second</span>().~_Alloc();</span><br><span class="line">    __a.<span class="built_in">deallocate</span>(_PTraits::<span class="built_in">pointer_to</span>(*<span class="keyword">this</span>), <span class="number">1</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到是上述<code>__shared_weak_count</code>的派生类，包含三个模板参数：指针类型、释放器类型和分配器类型。</p>
+<p>它扩展了一个<code>__compressed_pair</code>类型的数据成员。与<code>std::pair</code>不同，如果<code>__compressed_pair</code>的空间占用会根根据模板参数类型大小是否为空压缩，其实现是两个成员是通过继承<code>__compressed_pair_elem</code>，而非像<code>std::pair</code>一样直接声明两个模板参数类型的成员。</p>
+<p>从<code>__shared_ptr_pointer</code>的实现可以知道，相对于基类，它<strong>携带了原始指针、释放器和分配器的信息</strong>，并实现了基类定义的两个接口：</p>
+<ol>
+<li><p><code>__on_zero_shared</code>保证了在被管理对象的引用计数为0时，释放掉被管理对象的内存；</p>
+</li>
+<li><p><code>__on_zero_shared_weak</code>保证了在所有被管理对象的强弱引用对象（即shared_ptr和weak_ptr）都释放后，释放掉<strong>引用计数对象本身</strong>的内存。</p>
+</li>
+</ol>
+<p>再来看make_shared使用的<code>__shared_ptr_emplace</code>：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>, <span class="keyword">class</span> <span class="title class_">_Alloc</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">__shared_ptr_emplace</span>: <span class="keyword">public</span> __shared_weak_count &#123;</span><br><span class="line">    __compressed_pair&lt;_Alloc, _Tp&gt; __data_;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    __shared_ptr_emplace(_Alloc __a):  __data_(_VSTD::<span class="built_in">move</span>(__a), __value_init_tag()) &#123;&#125;</span><br><span class="line">    <span class="keyword">template</span> &lt;<span class="keyword">class</span> ..._Args&gt;</span><br><span class="line">    __shared_ptr_emplace(_Alloc __a, _Args&amp;&amp; ...__args)</span><br><span class="line">        :  __data_(piecewise_construct, _VSTD::forward_as_tuple(__a),</span><br><span class="line">               _VSTD::forward_as_tuple(_VSTD::forward&lt;_Args&gt;(__args)...)) &#123;&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">void</span> __on_zero_shared() _NOEXCEPT;</span><br><span class="line">    <span class="keyword">virtual</span> <span class="type">void</span> __on_zero_shared_weak() _NOEXCEPT;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="function">_Tp* <span class="title">get</span><span class="params">()</span> _NOEXCEPT </span>&#123;<span class="keyword">return</span> _VSTD::<span class="built_in">addressof</span>(__data_.<span class="built_in">second</span>());&#125;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>, <span class="keyword">class</span> <span class="title class_">_Alloc</span>&gt;</span><br><span class="line"><span class="type">void</span> __shared_ptr_emplace&lt;_Tp, _Alloc&gt;::__on_zero_shared() _NOEXCEPT &#123;</span><br><span class="line">    __data_.<span class="built_in">second</span>().~_Tp();</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>, <span class="keyword">class</span> <span class="title class_">_Alloc</span>&gt;</span><br><span class="line"><span class="type">void</span> __shared_ptr_emplace&lt;_Tp, _Alloc&gt;::__on_zero_shared_weak() _NOEXCEPT &#123;</span><br><span class="line">    <span class="keyword">typedef</span> <span class="keyword">typename</span> __allocator_traits_rebind&lt;_Alloc, __shared_ptr_emplace&gt;::type _Al;</span><br><span class="line">    <span class="keyword">typedef</span> allocator_traits&lt;_Al&gt; _ATraits;</span><br><span class="line">    <span class="keyword">typedef</span> pointer_traits&lt;<span class="keyword">typename</span> _ATraits::pointer&gt; _PTraits;</span><br><span class="line">    _Al __a(__data_.<span class="built_in">first</span>());</span><br><span class="line">    __data_.<span class="built_in">first</span>().~_Alloc();</span><br><span class="line">    __a.<span class="built_in">deallocate</span>(_PTraits::<span class="built_in">pointer_to</span>(*<span class="keyword">this</span>), <span class="number">1</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同样是<code>__shared_weak_count</code>的派生类。最大不同点在于：</p>
+<ol>
+<li><code>__shared_ptr_pointer</code>只持有被管理对象的指针，而<code>__shared_ptr_emplace</code>拥有被管理对象完整内存；</li>
+<li><code>__on_zero_shared</code>只负责调用被管理对象析构函数，其占用内存的释放要等到<code>__on_zero_shared_weak</code>阶段连同引用计数对象本身一起释放</li>
+</ol>
+<blockquote>
+<p><code>shared_ptr&lt;T&gt;::shared_ptr(pointer)</code> vs. <code>make_shared&lt;T&gt;(...)</code></p>
+<p>从上述代码分析我们可以知道：</p>
+<ol>
+<li>通过make_shared来构造智能指针，被管理对象的和引用计数对象内存被分配在一起，只执行了一次堆内存分配，且其引用计数对象相比于<code>__shared_ptr_pointer</code>少占用了一个指针的空间；</li>
+<li>通过make_shared来构造智能指针，被管理对象占用内存的释放相对于直接从裸指针构造可能更晚。要等到所有指向它的weak_ptr被释放后，才跟随引用计数对象一起释放</li>
+</ol>
+</blockquote>
+<h2 id="weak-ptr"><a href="#weak-ptr" class="headerlink" title="weak_ptr"></a>weak_ptr</h2><h3 id="memory-layout-1"><a href="#memory-layout-1" class="headerlink" title="memory layout"></a>memory layout</h3><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">weak_ptr</span> &#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    element_type*        __ptr_;</span><br><span class="line">    __shared_weak_count* __cntrl_;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>和shared_ptr类似，包含有原指针和引用计数对象的指针。</p>
+<h3 id="构造-1"><a href="#构造-1" class="headerlink" title="构造"></a>构造</h3><p>以从shared_ptr作为参数的构造函数为例：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>&gt;</span><br><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Yp</span>&gt;</span><br><span class="line"><span class="keyword">inline</span></span><br><span class="line">weak_ptr&lt;_Tp&gt;::<span class="built_in">weak_ptr</span>(shared_ptr&lt;_Yp&gt; <span class="type">const</span>&amp; __r,</span><br><span class="line">                        <span class="keyword">typename</span> enable_if&lt;is_convertible&lt;_Yp*, _Tp*&gt;::value, __nat*&gt;::type)</span><br><span class="line">                         _NOEXCEPT</span><br><span class="line">    : __ptr_(__r.__ptr_),</span><br><span class="line">      __cntrl_(__r.__cntrl_)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (__cntrl_)</span><br><span class="line">        __cntrl_-&gt;__add_weak();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>相对于shared_ptr就很简单了，主要就是执行add_weak操作，来增加引用计数对象的<code>__shared_weak_owners_</code>成员计数。</p>
+<h3 id="lock成员函数"><a href="#lock成员函数" class="headerlink" title="lock成员函数"></a>lock成员函数</h3><p>通过weak_ptr获取被管理对象时，我们需要使用<code>weak_ptr&lt;T&gt;::lock</code>成员函数，实现如下：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>&gt;</span><br><span class="line">shared_ptr&lt;_Tp&gt; weak_ptr&lt;_Tp&gt;::<span class="built_in">lock</span>() <span class="type">const</span> _NOEXCEPT &#123;</span><br><span class="line">    shared_ptr&lt;_Tp&gt; __r;</span><br><span class="line">    __r.__cntrl_ = __cntrl_ ? __cntrl_-&gt;<span class="built_in">lock</span>() : __cntrl_;</span><br><span class="line">    <span class="keyword">if</span> (__r.__cntrl_)</span><br><span class="line">        __r.__ptr_ = __ptr_;</span><br><span class="line">    <span class="keyword">return</span> __r;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">__shared_weak_count* <span class="title">__shared_weak_count::lock</span><span class="params">()</span> <span class="keyword">noexcept</span> </span>&#123;</span><br><span class="line">    <span class="type">long</span> object_owners = __libcpp_atomic_load(&amp;__shared_owners_);</span><br><span class="line">    <span class="keyword">while</span> (object_owners != <span class="number">-1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (__libcpp_atomic_compare_exchange(&amp;__shared_owners_,</span><br><span class="line">                                             &amp;object_owners,</span><br><span class="line">                                             object_owners+<span class="number">1</span>))</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">this</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nullptr</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同样是通过原子操作来实现。<code>lock()</code>函数中，通过CAS操作，获取引用计数并+1，成功则返回引用计数对象的指针，并构造对应shared_ptr；如果获取到的引用计数已经是-1，被管理对象已释放，则返回空指针，构造一个空的shared_ptr返回。</p>
+<p>这里weak_ptr是shared_ptr的友元类，因此可以直接赋值shared_ptr的成员。</p>
+<h2 id="shared-from-this"><a href="#shared-from-this" class="headerlink" title="shared_from_this"></a>shared_from_this</h2><p>当我们需要在一个被智能指针管理的对象的成员函数中，返回指向自身的shared_ptr时会遇到问题。结合上述分析可以知道，因为如果使用this指针构造shared_ptr，则又会创建一个引用计数对象来管理。</p>
+<p>因此我们需要继承类<code>std::enable_shared_from_this&lt;T&gt;</code>，通过其方法<code>shared_from_this()</code>去访问shared_ptr的实现细节，即<code>__cntrl_</code>成员，来构造一个指向自身的shared_ptr。</p>
+<p>来看一下该类的实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">class</span> <span class="title class_">_Tp</span>&gt;</span><br><span class="line"><span class="keyword">class</span> <span class="title class_">enable_shared_from_this</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">mutable</span> weak_ptr&lt;_Tp&gt; __weak_this_;</span><br><span class="line"><span class="keyword">protected</span>:</span><br><span class="line">    <span class="built_in">enable_shared_from_this</span>() _NOEXCEPT &#123;&#125;</span><br><span class="line">    <span class="built_in">enable_shared_from_this</span>(enable_shared_from_this <span class="type">const</span>&amp;) _NOEXCEPT &#123;&#125;</span><br><span class="line">    enable_shared_from_this&amp; <span class="keyword">operator</span>=(enable_shared_from_this <span class="type">const</span>&amp;) _NOEXCEPT</span><br><span class="line">        &#123;<span class="keyword">return</span> *<span class="keyword">this</span>;&#125;</span><br><span class="line">    ~<span class="built_in">enable_shared_from_this</span>() &#123;&#125;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    <span class="function">shared_ptr&lt;_Tp&gt; <span class="title">shared_from_this</span><span class="params">()</span></span></span><br><span class="line"><span class="function">        </span>&#123;<span class="keyword">return</span> <span class="built_in">shared_ptr</span>&lt;_Tp&gt;(__weak_this_);&#125;</span><br><span class="line">    <span class="function">shared_ptr&lt;_Tp <span class="type">const</span>&gt; <span class="title">shared_from_this</span><span class="params">()</span> <span class="type">const</span></span></span><br><span class="line"><span class="function">        </span>&#123;<span class="keyword">return</span> <span class="built_in">shared_ptr</span>&lt;<span class="type">const</span> _Tp&gt;(__weak_this_);&#125;</span><br><span class="line">    <span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Up</span>&gt; <span class="keyword">friend</span> <span class="keyword">class</span> <span class="title class_">shared_ptr</span>;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>有一个成员<code>__weak_this_</code>。如果类继承了<code>std::enable_shared_from_this</code>，则会拥有这个成员，即指向自身的weak_ptr，从而即可实现<code>shared_from_this()</code>方法，那么问题就变成了何时对该成员复制。</p>
+<p>这就是前部分shared_ptr构造过程结束前，<code>__enable_weak_this</code>方法所做的事情，来看该成员函数的实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="title class_">_Yp</span>, <span class="keyword">class</span> <span class="title class_">_OrigPtr</span>&gt;</span><br><span class="line"><span class="keyword">typename</span> enable_if&lt;is_convertible&lt;_OrigPtr*,</span><br><span class="line">                                  <span class="type">const</span> enable_shared_from_this&lt;_Yp&gt;*</span><br><span class="line">&gt;::value,</span><br><span class="line">    <span class="type">void</span>&gt;::type</span><br><span class="line">shared_ptr&lt;_Tp&gt;::__enable_weak_this(<span class="type">const</span> enable_shared_from_this&lt;_Yp&gt;* __e,</span><br><span class="line">                   _OrigPtr* __ptr) _NOEXCEPT &#123;</span><br><span class="line">    <span class="keyword">typedef</span> <span class="keyword">typename</span> remove_cv&lt;_Yp&gt;::type _RawYp;</span><br><span class="line">    <span class="keyword">if</span> (__e &amp;&amp; __e-&gt;__weak_this_.<span class="built_in">expired</span>())</span><br><span class="line">    &#123;</span><br><span class="line">        __e-&gt;__weak_this_ = <span class="built_in">shared_ptr</span>&lt;_RawYp&gt;(*<span class="keyword">this</span>,</span><br><span class="line">            <span class="built_in">const_cast</span>&lt;_RawYp*&gt;(<span class="built_in">static_cast</span>&lt;<span class="type">const</span> _Yp*&gt;(__ptr)));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> shared_ptr&lt;_Tp&gt;::__enable_weak_this(...) _NOEXCEPT &#123;&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也是借助了SFINAE，当被管理对象的类继承了<code>std::enable_shared_from_this</code>时，则会初始化其<code>__weak_this_</code>成员。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>综上，libc++实现的<code>std::shared_ptr</code> &#x2F; <code>std::weak_ptr</code>功能主要通过它们的<code>__cntrl__</code>成员，即指向一个引用计数对象的指针实现：</p>
+<ol>
+<li>分配：在make_shared或从std::shared_ptr的被管理对象的原始指针构造方法中首次被分配；</li>
+<li>管理：shared_ptr的其他拷贝、移动、赋值操作，或创建对应的weak_ptr，都是在共享同一个引用计数对象的指针，对这个对象进行引用计数的增减操作；</li>
+<li>释放：在引用计数归零后，引用计数对象负责析构被管理对象并释放内存；在所有引用被管理对象的智能指针都释放后，引用计数对象自身才被最终析构、释放。</li>
+</ol>
+
+  </div>
+</article>
+
+    <div class="blog-post-comments">
+        <div id="disqus_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+        
+          <li><a href="/">首页</a></li>
+        
+          <li><a href="/about/">关于</a></li>
+        
+          <li><a href="/archives/">归档</a></li>
+        
+          <li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li>
+        
+      </ul>
+    </div>
+
+    
+    
+      <div id="toc-footer" style="display: none">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#shared-ptr"><span class="toc-number">1.</span> <span class="toc-text">shared_ptr</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#memory-layout"><span class="toc-number">1.1.</span> <span class="toc-text">memory layout</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E5%AF%B9%E8%B1%A1%E6%8A%BD%E8%B1%A1%E7%B1%BB%EF%BC%9A-shared-weak-count"><span class="toc-number">1.1.1.</span> <span class="toc-text">引用计数对象抽象类：__shared_weak_count</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E7%9B%B8%E5%85%B3%E6%93%8D%E4%BD%9C"><span class="toc-number">1.1.2.</span> <span class="toc-text">引用计数相关操作</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%84%E9%80%A0"><span class="toc-number">1.2.</span> <span class="toc-text">构造</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BC%95%E7%94%A8%E8%AE%A1%E6%95%B0%E5%AF%B9%E8%B1%A1"><span class="toc-number">1.2.1.</span> <span class="toc-text">引用计数对象</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#weak-ptr"><span class="toc-number">2.</span> <span class="toc-text">weak_ptr</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#memory-layout-1"><span class="toc-number">2.1.</span> <span class="toc-text">memory layout</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%84%E9%80%A0-1"><span class="toc-number">2.2.</span> <span class="toc-text">构造</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#lock%E6%88%90%E5%91%98%E5%87%BD%E6%95%B0"><span class="toc-number">2.3.</span> <span class="toc-text">lock成员函数</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#shared-from-this"><span class="toc-number">3.</span> <span class="toc-text">shared_from_this</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">4.</span> <span class="toc-text">总结</span></a></li></ol>
+      </div>
+    
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/libcxx-sharedptr/"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/libcxx-sharedptr/&text=libc++ 智能指针实现分析"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/libcxx-sharedptr/&is_video=false&description=libc++ 智能指针实现分析"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=libc++ 智能指针实现分析&body=Check out this article: http://bersl.github.io/libcxx-sharedptr/"><i class="fa-solid fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/libcxx-sharedptr/&title=libc++ 智能指针实现分析"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/libcxx-sharedptr/&name=libc++ 智能指针实现分析&description="><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/libcxx-sharedptr/&t=libc++ 智能指针实现分析"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        
+          <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2023
+    Bers Liu
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script>
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script>
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板！\">";
+    btn += '<i class="fa-regular fa-clone"></i>';
+    btn += '</span>';
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功！");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Disqus Comments -->
+
+    <script type="text/javascript">
+        var disqus_shortname = 'bers-blog';
+
+        (function(){
+            var dsq = document.createElement('script');
+            dsq.type = 'text/javascript';
+            dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        }());
+    </script>
+
+<!-- utterances Comments -->
+
+</body>
+</html>

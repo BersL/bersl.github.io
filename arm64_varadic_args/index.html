@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="本文最初发布于公司内网，后发布于腾讯Bugly公众号，文章链接  快速复习Objective-C Runtime的知识点大家应该都很熟悉了，这里给非iOS程序员简单介绍一下关键点 Objective-C的方法调用是通过消息传递的形式，即： [receiver message:arg] 会被编译器转化为C函数调用 objc_msgSend(receiver, @selector(message:)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM64不定函数传参分析">
+<meta property="og:url" content="http://bersl.github.io/arm64_varadic_args/index.html">
+<meta property="og:site_name" content="Bers的个人博客">
+<meta property="og:description" content="本文最初发布于公司内网，后发布于腾讯Bugly公众号，文章链接  快速复习Objective-C Runtime的知识点大家应该都很熟悉了，这里给非iOS程序员简单介绍一下关键点 Objective-C的方法调用是通过消息传递的形式，即： [receiver message:arg] 会被编译器转化为C函数调用 objc_msgSend(receiver, @selector(message:)">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://bersl.github.io/images/arm64_args/crash0.png">
+<meta property="og:image" content="http://bersl.github.io/images/arm64_args/comiple_error0.png">
+<meta property="og:image" content="http://bersl.github.io/images/arm64_args/conclusion.jpg">
+<meta property="article:published_time" content="2018-11-28T09:09:00.000Z">
+<meta property="article:modified_time" content="2023-08-16T09:19:06.010Z">
+<meta property="article:author" content="Bers Liu">
+<meta property="article:tag" content="iOS">
+<meta property="article:tag" content="操作系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://bersl.github.io/images/arm64_args/crash0.png">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+        
+      
+    
+    <!-- title -->
+    <title>ARM64不定函数传参分析</title>
+    <!-- async scripts -->
+    <!-- Google Analytics -->
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-167200849-1"></script>
+  <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'UA-167200849-1');
+  </script>
+
+
+    <!-- Umami Analytics -->
+
+
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="顶部" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fa-solid fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="上一篇" href="/parallel_fundamental/"><i class="fa-solid fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="下一篇" href="/macqq_antirevoke/"><i class="fa-solid fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="返回顶部" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" aria-label="分享文章" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/arm64_varadic_args/"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/arm64_varadic_args/&text=ARM64不定函数传参分析"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/arm64_varadic_args/&is_video=false&description=ARM64不定函数传参分析"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=ARM64不定函数传参分析&body=Check out this article: http://bersl.github.io/arm64_varadic_args/"><i class="fa-solid fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/arm64_varadic_args/&name=ARM64不定函数传参分析&description="><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/arm64_varadic_args/&t=ARM64不定函数传参分析"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    
+    
+      <div id="toc">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BF%AB%E9%80%9F%E5%A4%8D%E4%B9%A0"><span class="toc-number">1.</span> <span class="toc-text">快速复习</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF"><span class="toc-number">2.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%9D%E6%AD%A5%E5%88%86%E6%9E%90"><span class="toc-number">3.</span> <span class="toc-text">初步分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81"><span class="toc-number">4.</span> <span class="toc-text">测试代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8F%92%E6%9B%B2"><span class="toc-number">4.1.</span> <span class="toc-text">插曲</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%811"><span class="toc-number">4.2.</span> <span class="toc-text">测试代码1</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A8%A1%E6%8B%9F%E5%99%A8%EF%BC%88x86-64"><span class="toc-number">4.2.1.</span> <span class="toc-text">模拟器（x86-64)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9C%9F%E6%9C%BA%EF%BC%88ARM64%EF%BC%89"><span class="toc-number">4.2.2.</span> <span class="toc-text">真机（ARM64）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%812"><span class="toc-number">4.3.</span> <span class="toc-text">测试代码2</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A8%A1%E6%8B%9F%E5%99%A8%EF%BC%88x86-64%EF%BC%89"><span class="toc-number">4.3.1.</span> <span class="toc-text">模拟器（x86-64）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9C%9F%E6%9C%BA%EF%BC%88ARM64%EF%BC%89-1"><span class="toc-number">4.3.2.</span> <span class="toc-text">真机（ARM64）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%813"><span class="toc-number">4.4.</span> <span class="toc-text">测试代码3</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9C%9F%E6%9C%BA%EF%BC%88ARM64%EF%BC%89-2"><span class="toc-number">4.4.1.</span> <span class="toc-text">真机（ARM64）</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E5%88%86%E6%9E%90%E4%B8%8E%E7%BB%93%E8%AE%BA"><span class="toc-number">5.</span> <span class="toc-text">问题分析与结论</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#RTFM"><span class="toc-number">5.1.</span> <span class="toc-text">RTFM</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#x86-64"><span class="toc-number">5.1.1.</span> <span class="toc-text">x86-64</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#ARM64"><span class="toc-number">5.1.2.</span> <span class="toc-text">ARM64</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E8%AE%BA"><span class="toc-number">5.1.3.</span> <span class="toc-text">结论</span></a></li></ol></li></ol></li></ol>
+      </div>
+    
+  </span>
+</div>
+
+    
+    <div class="content index py4 ">
+        
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle p-name" itemprop="name headline">
+        ARM64不定函数传参分析
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span class="p-name" itemprop="name">Bers Liu</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2018-11-28T09:09:00.000Z" class="dt-published" itemprop="datePublished">2018-11-28</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fa-solid fa-tag"></i>
+        <a class="p-category" href="/tags/iOS/" rel="tag">iOS</a>, <a class="p-category" href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/" rel="tag">操作系统</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content e-content" itemprop="articleBody">
+    <blockquote>
+<p>本文最初发布于公司内网，后发布于腾讯Bugly公众号，<a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/d8-g3Gp6A3hZLa1EjV6KVQ">文章链接</a></p>
+</blockquote>
+<h2 id="快速复习"><a href="#快速复习" class="headerlink" title="快速复习"></a>快速复习</h2><p>Objective-C Runtime的知识点大家应该都很熟悉了，这里给非iOS程序员简单介绍一下关键点</p>
+<p>Objective-C的方法调用是通过消息传递的形式，即：</p>
+<p><code>[receiver message:arg]</code></p>
+<p>会被编译器转化为C函数调用</p>
+<p><code>objc_msgSend(receiver, @selector(message:), arg)</code></p>
+<p>其中：</p>
+<ol>
+<li><code>@selector(message:)</code>是一个<code>SEL</code>类型的值，用于标示类中的一个方法（类比C的函数指针来理解）</li>
+<li><code>@selector(methodName)</code>表达式用于获得当前类中<code>methodName</code>方法的对应SEL</li>
+</ol>
+<p><code>obj_msgSend</code>函数的主要执行流程大致是：</p>
+<p>获得<code>recevier</code>所属类 -&gt; 在类中查找对应<code>selector</code>方法的函数体 -&gt; 获得指向这个函数<code>IMP</code>指针并调用</p>
+<p>当然，实际实现中还实现了方法缓存、消息转发等重要机制。这里不作赘述，不是重点 ;-)</p>
+<p>上述流程中的IMP指针是普通的C函数指针，原型为<code>id (*IMP)(id, SEL, ...)</code> ，指向方法的实际函数体实现。</p>
+<p>通过<code>NSObject</code>的<code>instanceMethodForSelector:</code>类方法可以获得某个selector的<code>IMP</code>指针，因此，可以通过直接调用<code>IMP</code>来绕过objc运行时，从而加速调用过程或实现其他更灵活的操作</p>
+<blockquote>
+<p>Objective-C 中id是一个指针类型，指向任意一个Objective-C对象，相当于void *</p>
+<p>NSObject是所有对象的基类</p>
+</blockquote>
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><p>写业务代码时中遇到了一个情况，有一个数据处理方法会被频繁调用，并且有一个开关判断是否处理。</p>
+<p>为了提高调用速度，同时避免每次处理时的 if 判断，采用了缓存方法的IMP指针直接调用的逻辑。每次开启&#x2F;关闭数据处理时，直接切换缓存IMP的指针指向的实现即可。</p>
+<p>代码逻辑见<em><strong>Code 3-1</strong></em></p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Code 3-1</span></span><br><span class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">TestClass</span></span></span><br><span class="line">- (<span class="type">void</span>)process:(<span class="type">id</span>)value &#123;</span><br><span class="line">	<span class="comment">// do something with value</span></span><br><span class="line">    <span class="comment">// ……</span></span><br><span class="line">&#125;</span><br><span class="line">- (<span class="type">void</span>)process_blackhole:(<span class="type">id</span>)value &#123;</span><br><span class="line">    <span class="comment">// just ignore</span></span><br><span class="line">&#125;</span><br><span class="line">- (<span class="type">void</span>)fastProcessValue:(<span class="type">id</span>)value &#123;</span><br><span class="line">    <span class="comment">// 取得缓存的selector：@selector(process:) / @selector(process_blackhole:)</span></span><br><span class="line">    SEL selectorCache = get_cached_selector();</span><br><span class="line">    <span class="comment">// 取得缓存的IMP：与上述selector对应</span></span><br><span class="line">    IMP IMPCache = get_cached_IMP();</span><br><span class="line">    (*IMPCache)(<span class="keyword">self</span>, selectorCache, value);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure>
+
+<p>数据处理默认是关闭的，通过下发配置开启。上述实现过程在debug、RDM部署时都没有发现问题，但是提交到主干后，被发现在真机debug的环境下，引发了必现crash，堆栈如图所示</p>
+<p><img src="/images/arm64_args/crash0.png" alt="image-20181116212501378"></p>
+<h2 id="初步分析"><a href="#初步分析" class="headerlink" title="初步分析"></a>初步分析</h2><p>crash发生在<code>objc_storeStrong</code>函数中，猜测是ARC下导致的问题，尝试将<code>process_blackhole</code>方法的参数类型修改为<code>void *</code>或<code>id __unsafe_unretained</code>后，不发生crash。</p>
+<p>但事情没有这么简单，继续测试发现，将缓存的IMP指针指向对传入参数有处理逻辑的方法<code>- [TestClass process:]</code>后，真机debug环境下同样会引起crash。</p>
+<p>那么就不能简单地处理这个问题：使用<code>void *</code>或<code>id __unsafe_unretained</code>传递参数，ARC下编译器无法正确管理其的生命周期，后续对象的使用存在严重安全隐患。</p>
+<blockquote>
+<p>ARC复习：</p>
+<p>id类型的默认所有权修饰符是id __strong，在超出其变量作用域时会被调用release方法</p>
+<p>使用void *或__unsafe_unretained修饰符传递参数相当于直接传递对象指针</p>
+<p>对象赋值给__autoreleasing修饰符的变量，对象会被注册到自动释放池</p>
+</blockquote>
+<p>分析Objective-C Runtime的源码，<code>objc_storeStrong</code>的实现见<em><strong>Code 3-2</strong></em>。</p>
+<p>逻辑较为简单，即将参数<code>obj</code>对象retain（引用计数+1）后，存放到<code>location</code>指定的地址，并且对<code>location</code>中原来存放的对象调用release（引用计数-1）</p>
+<p><code>objc_storeStrong</code>在方法的函数序（prologue）部分被调用，在方法函数体的实现部分之前持有传入的参数（即持有其强引用，避免被释放）。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Code 3-2</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">objc_storeStrong</span><span class="params">(id *location, id obj)</span> </span><br><span class="line">&#123;</span><br><span class="line">    id prev = *location;</span><br><span class="line">    <span class="keyword">if</span> (obj == prev) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    objc_retain(obj);</span><br><span class="line">    *location = obj;</span><br><span class="line">    objc_release(prev);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>通过汇编单步调试发现上述crash属于访存错误，objc_retain调用传入了一个堆栈上的地址。这很奇怪，按理说传入的应当是该方法的实参对象——一个堆中的地址，指向一个合法对象。</p>
+<p>通过Google，在Stack Overflow上有人遇到了同样的crash：<a target="_blank" rel="noopener" href="https://stackoverflow.com/a/32506190">IMP methodForSelector EXC_BAD_ACCESS crash</a>，回答给出的解决方案是显式将IMP强转为函数类型：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> (*IMPCache)(<span class="type">id</span>, SEL, <span class="type">id</span>) = (<span class="type">void</span>(*)(<span class="type">id</span>, SEL, <span class="type">id</span>))get_cached_IMP();</span><br><span class="line">(*IMPCache)(<span class="keyword">self</span>, selectorCache, value);</span><br></pre></td></tr></table></figure>
+
+<p>经测试，的确解决了crash的问题。</p>
+<p>PS.：对比Relase配置下和Debug配置的汇编代码发现，之所以RDM部署时未发生crash是因为<code>- [TestClass process_blackhole]</code>方法是空实现，Release下经过编译器优化，其函数体仅有一条ret指令。在该方法实现中加入对参数的处理逻辑后，会引起同一个crash.  :-P</p>
+<h2 id="测试代码"><a href="#测试代码" class="headerlink" title="测试代码"></a>测试代码</h2><h3 id="插曲"><a href="#插曲" class="headerlink" title="插曲"></a>插曲</h3><p>为了更好地分析原因，在新工程参照<em><strong>Code 3-1</strong></em>编写了测试代码，但是发生了编译错误</p>
+<p><img src="/images/arm64_args/comiple_error0.png" alt="image-20181118235519344"></p>
+<p>查阅Runtime源码（<em><strong>Code 4-1</strong></em>），发现IMP的指针定义与传统认识有些许出入，被一个名为<code>OBJC_OLD_DISPATCH_PROTOTYPES</code>的宏控制，未定义时IMP指针指向一个参数列表为void的函数。</p>
+<p>查阅资料后发现需要在LLVM编译选项中手动开启<em><strong>Enable Strict Checking of objc_msgSend Calls</strong></em>，路径为：</p>
+<p>工程文件 -&gt; Build Settings -&gt; Apple LLVM - Preprocessing -&gt;  Enable Strict Checking of objc_msgSend Calls</p>
+<p>该开关控制上述宏的定义，关闭后IMP指针则为之前我们所熟悉的<code>id (*IMP)(id, SEL, ...)</code>类型。</p>
+<p>这是一个编译时的检查，Xcode默认开启。开启这个检查后，在调用obj_msgSend前，应手动将obj_msgSend其强转成实际的函数类型（IMP指针同理），也就是上文提到<a target="_blank" rel="noopener" href="https://stackoverflow.com/a/32506190">IMP methodForSelector EXC_BAD_ACCESS crash</a>的解决方案。手Q工程中该选项默认已关闭。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Code 4-1</span></span><br><span class="line"><span class="comment">/// A pointer to the function of a method implementation. </span></span><br><span class="line"><span class="meta">#<span class="keyword">if</span> !OBJC_OLD_DISPATCH_PROTOTYPES</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="title function_">void</span> <span class="params">(*IMP)</span><span class="params">(<span class="type">void</span> <span class="comment">/* id, SEL, ... */</span> )</span>; </span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line"><span class="keyword">typedef</span> id _Nullable (*IMP)(id _Nonnull, SEL _Nonnull, ...); </span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>为什么现在的编译器会加入这样一个检查？通过后面的分析会有答案。</p>
+<h3 id="测试代码1"><a href="#测试代码1" class="headerlink" title="测试代码1"></a>测试代码1</h3><p>编写测试代码（<em><strong>Code 4-2</strong></em>）。其中参照IMP类型声明了一个函数指针，最后一个参数为不定参数。</p>
+<p>测试结果与预期一致，模拟器环境下代码正常执行，真机环境会crash在<code>internalProcess:</code>方法入口处</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Code 4-2</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="type">void</span>(*ProcessIMPPTR)(<span class="type">id</span>, SEL, ...);</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">TestClass</span></span></span><br><span class="line">- (<span class="type">void</span>)internalProcess:(<span class="type">id</span>)obj &#123;</span><br><span class="line">    <span class="keyword">if</span> ([obj isKindOfClass:[<span class="built_in">NSValue</span> <span class="keyword">class</span>]]) &#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@&quot;%g&quot;</span>, [obj <span class="built_in">CGPointValue</span>].x);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">- (<span class="type">void</span>)processValue:(<span class="type">id</span>)value &#123;</span><br><span class="line">    SEL processSEL = <span class="keyword">@selector</span>(internalProcess:);</span><br><span class="line">    ProcessIMPPTR processIMP = (ProcessIMPPTR)[[TestClass <span class="keyword">class</span>] instanceMethodForSelector:processSEL];</span><br><span class="line">    (*processIMP)(<span class="keyword">self</span>, processSEL, value);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure>
+
+<p>查看编译器生成的汇编代码，定位到语句<code>(*processIMP)(self, processSEL, value);</code>相关的汇编指令（<em><strong>Assembly 4-1.1 &amp; Assembly 4-1.2</strong></em>）。</p>
+<h4 id="模拟器（x86-64"><a href="#模拟器（x86-64" class="headerlink" title="模拟器（x86-64)"></a>模拟器（x86-64)</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"># Assembly 4-1.1	</span><br><span class="line">	movq	%rdx, %rdi			# rdi = self</span><br><span class="line">	movq	-48(%rbp), %rdx     # rdx = retainedValue</span><br><span class="line">	movq	%rax, -56(%rbp)     # [rbp - 56] = (IMP of internalProcess:)</span><br><span class="line">	movb	$0, %al</span><br><span class="line">	movq	-56(%rbp), %rcx</span><br><span class="line">	callq	*%rcx	</span><br><span class="line">	##	(IMP of internalProcess:)(self, @selector(internalProcess:), retainedValue)</span><br></pre></td></tr></table></figure>
+
+<h4 id="真机（ARM64）"><a href="#真机（ARM64）" class="headerlink" title="真机（ARM64）"></a>真机（ARM64）</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">; Assembly 4-1.2</span><br><span class="line">	ldr	x8, [sp, #8]    	;	x8 = (IMP of internalProcess:)</span><br><span class="line">	ldur	x9, [x29, #-8]	;	x9 = self</span><br><span class="line">	ldr	x1, [sp, #16]		;	x1 = @selector(internalProcess:)</span><br><span class="line">	ldr	x0, [sp, #24]		;	x0 = retainedValue</span><br><span class="line">	mov	x2, sp</span><br><span class="line">	str	x0, [x2]			;	*sp = retainedValue</span><br><span class="line">	mov	x0, x9</span><br><span class="line">	blr	x8		</span><br><span class="line">	; 	(IMP of internalProcess:)(self, @selector(internalProcess:), &amp;retainedValue)</span><br></pre></td></tr></table></figure>
+
+<p>两端汇编代码的含义已注释在关键指令末尾，其中：</p>
+<ol>
+<li><p>(IMP of internalProcess:)为<code>- [TestClass internalProcess:]</code>方法的IMP指针，通过<code>instanceMethodForSelector:</code>获取后被压栈。</p>
+</li>
+<li><p>retainedValue为<code>- (void)processValue:(id)value</code>的参数value被retain后的值。</p>
+<p>在本文<em><strong>初步分析</strong></em> 部分有提到，ARC环境下，在方法函数体的实现部分之前，编译器会对参数调用objc_storeStrong以持有传入的参数，存放在栈中</p>
+</li>
+</ol>
+<p>可以看到，模拟器下参数传递正确，而真机下却很奇怪地传递了参数的地址而非本身，造成了本文<em><strong>初步分析</strong></em> 部分提到的访存crash：objc_retain调用传入了一个堆栈上的地址而非对象。</p>
+<h3 id="测试代码2"><a href="#测试代码2" class="headerlink" title="测试代码2"></a>测试代码2</h3><p>暂时没有太多头绪，因此查看两个参数传递的情况，编写测试代码<em><strong>Code 4-3</strong></em>。该代码测试执行crash情况与<em><strong>Code 4-2</strong></em>相同。</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Code 4-3</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="type">void</span>(*ProcessIMPPTR)(<span class="type">id</span>, SEL, ...);</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">TestClass</span></span></span><br><span class="line">- (<span class="type">void</span>)internalProcess:(<span class="type">id</span>)obj another:(<span class="type">id</span>)obj2 &#123;</span><br><span class="line">    <span class="keyword">if</span> ([obj isKindOfClass:[<span class="built_in">NSValue</span> <span class="keyword">class</span>]]) &#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@&quot;%g&quot;</span>, [obj <span class="built_in">CGPointValue</span>].x);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> ([obj2 isKindOfClass:[<span class="built_in">NSValue</span> <span class="keyword">class</span>]]) &#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@&quot;%g&quot;</span>, [obj2 <span class="built_in">CGPointValue</span>].x);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">- (<span class="type">void</span>)processValueA:(<span class="type">id</span>)valueA valueB:(<span class="type">id</span>)valueB &#123;</span><br><span class="line">    SEL processSEL = <span class="keyword">@selector</span>(internalProcess:another:);</span><br><span class="line">    ProcessIMPPTR processIMP = (ProcessIMPPTR)[[TestClass <span class="keyword">class</span>] instanceMethodForSelector:processSEL];</span><br><span class="line">    (*processIMP)(<span class="keyword">self</span>, processSEL, valueA, valueB);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure>
+
+<p>同样定位到语句<code>(*processIMP)(self, processSEL, valueA, valueB);</code>相关的汇编指令（<em><strong>Assembly 4-2.1 &amp; Assembly 4-2.2</strong></em>）。</p>
+<h4 id="模拟器（x86-64）"><a href="#模拟器（x86-64）" class="headerlink" title="模拟器（x86-64）"></a>模拟器（x86-64）</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"># Assembly 4-2.1</span><br><span class="line">	movq	-8(%rbp), %rcx          # rcx = self</span><br><span class="line">	movq	-40(%rbp), %rsi         # rsi = @selector(internalProcess:another:)</span><br><span class="line">	movq	-24(%rbp), %rdx         # rdx = retainedValueA</span><br><span class="line">	movq	-32(%rbp), %rdi         # rdi = retainedValueB</span><br><span class="line">	movq	%rdi, -64(%rbp)         # [rbp - 64] = retainedValueB</span><br><span class="line">	movq	%rcx, %rdi              # rdi = self</span><br><span class="line">	movq	-64(%rbp), %rcx         # rcx = retainedValueB </span><br><span class="line">	movq	%rax, -72(%rbp)         # [rbp - 72] = (IMP of internalProcess:another:) </span><br><span class="line">	movb	$0, %al</span><br><span class="line">	movq	-72(%rbp), %r8          # r8 = (IMP of internalProcess:another:)</span><br><span class="line">	callq	*%r8</span><br><span class="line">    # (IMP of internalProcess:another:)(self, @selector(internalProcess:another:), retainedValueA, retainedValueB)</span><br></pre></td></tr></table></figure>
+
+<h4 id="真机（ARM64）-1"><a href="#真机（ARM64）-1" class="headerlink" title="真机（ARM64）"></a>真机（ARM64）</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">; Assembly 4-2.2</span><br><span class="line">	ldr	x8, [sp, #32]           ; x8 = (IMP of internalProcess:another:)</span><br><span class="line">	ldur	x9, [x29, #-8]      ; x9 = self</span><br><span class="line">	ldr	x1, [sp, #40]           ; x1 = @selector(internalProcess:another:)</span><br><span class="line">	ldur	x0, [x29, #-24]     ; x0 = retainedValueA</span><br><span class="line">	ldur	x2, [x29, #-32]     ; x2 = retainedValueB</span><br><span class="line">	mov	x3, sp</span><br><span class="line">	str	x2, [x3, #8]            ; [sp + 8] = retainedValueB</span><br><span class="line">	str	x0, [x3]                ; [sp] = retainedValueA</span><br><span class="line">	mov	x0, x9                  ; x0 = self</span><br><span class="line">	blr	x8</span><br><span class="line">    ; (IMP of internalProcess:another:)(self, @selector(internalProcess:another:), retainedValueB, &amp;retainedValueA)</span><br></pre></td></tr></table></figure>
+
+<p>这次ARM64架构的传参更加奇怪，传递的分别是第二个参数以及第一个参数的地址</p>
+<h3 id="测试代码3"><a href="#测试代码3" class="headerlink" title="测试代码3"></a>测试代码3</h3><p>为了结合正确情况的代码分析，编写测试代码<em><strong>Code 4-4</strong></em>，该代码根据函数的实际类型定义了指针，经测试真机和模拟器都能正常执行。</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Code 4-4</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="type">void</span>(*ProcessIMPPTR)(<span class="type">id</span>, SEL, <span class="type">id</span>, <span class="type">id</span>);</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@implementation</span> <span class="title">TestClass</span></span></span><br><span class="line">- (<span class="type">void</span>)internalProcess:(<span class="type">id</span>)obj another:(<span class="type">id</span>)obj2 &#123;</span><br><span class="line">    <span class="keyword">if</span> ([obj isKindOfClass:[<span class="built_in">NSValue</span> <span class="keyword">class</span>]]) &#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@&quot;%g&quot;</span>, [obj <span class="built_in">CGPointValue</span>].x);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> ([obj2 isKindOfClass:[<span class="built_in">NSValue</span> <span class="keyword">class</span>]]) &#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@&quot;%g&quot;</span>, [obj2 <span class="built_in">CGPointValue</span>].x);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">- (<span class="type">void</span>)processValueA:(<span class="type">id</span>)valueA valueB:(<span class="type">id</span>)valueB &#123;</span><br><span class="line">    SEL processSEL = <span class="keyword">@selector</span>(internalProcess:another:);</span><br><span class="line">    ProcessIMPPTR processIMP = (ProcessIMPPTR)[[TestClass <span class="keyword">class</span>] instanceMethodForSelector:processSEL];</span><br><span class="line">    (*processIMP)(<span class="keyword">self</span>, processSEL, valueA, valueB);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure>
+
+<p>查看真机对应到语句<code>(*processIMP)(self, processSEL, valueA, valueB);</code>相关的汇编指令（<em><strong>Assembly 4-3</strong></em>）</p>
+<h4 id="真机（ARM64）-2"><a href="#真机（ARM64）-2" class="headerlink" title="真机（ARM64）"></a>真机（ARM64）</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ldr	x8, [sp, #16]			; x8 = (IMP of internalProcess:another:)</span><br><span class="line">ldur	x9, [x29, #-8]		; x9 = self</span><br><span class="line">ldr	x1, [sp, #24]			; x1 = @selector(internalProcess:another:)</span><br><span class="line">ldur	x2, [x29, #-24]		; x2 = retainedValueA</span><br><span class="line">ldr	x3, [sp, #32]			; x3 = retainedValueB</span><br><span class="line">mov	x0, x9					; x0 = self</span><br><span class="line">blr	x8</span><br><span class="line">;  (IMP of internalProcess:another:)(self, @selector(internalProcess:another:), retainedValueA, retainedValueB)</span><br></pre></td></tr></table></figure>
+
+<p>可以看到这次参数传递符合预期，因此没引起crash</p>
+<h2 id="问题分析与结论"><a href="#问题分析与结论" class="headerlink" title="问题分析与结论"></a>问题分析与结论</h2><blockquote>
+<p>以下问题真机环境只考虑ARM64（iPhone 5s及以后的设备），也即AArch64执行态的ARMv8-A架构</p>
+</blockquote>
+<p>经过上一部分的代码测试，引起crash的问题有了结论，即真机调用IMP指针时传递的参数不正确，而x86-64架构的模拟器却是正确的，这是为什么呢。</p>
+<p>回到关键的测试代码2部分，查看指令片段<em><strong>Assembly 4-2.2</strong></em>可以注意到这三条指令</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mov	x3, sp</span><br><span class="line">str	x2, [x3, #8]            ; [sp + 8] = retainedValueB</span><br><span class="line">str	x0, [x3]                ; [sp] = retainedValueA</span><br></pre></td></tr></table></figure>
+
+<p>这不像是在通过寄存器传参，倒很明显地是在通过栈传参——将两个参数从右至左依次压栈。</p>
+<p>可是根据以往Google的了解，ARM64调用约定是：</p>
+<p>前8个参数依次通过<code>X0-X7</code>寄存器传递，剩下的参数从右往左依次入栈，由被调用者实现栈平衡，返回值存放在<code>X0</code> 中。</p>
+<p>实际情况也的确如此。但从代码来看，却很像是retainedValueA和retainedValueB两个参数在通过压栈的方式传参，难道ARM64调用约定对于<strong>不定参数</strong>函数传参模式有特殊处理？</p>
+<p>事情到这里，只能进入到人民群众喜闻乐见的RTFM环节</p>
+<h3 id="RTFM"><a href="#RTFM" class="headerlink" title="RTFM"></a>RTFM</h3><h4 id="x86-64"><a href="#x86-64" class="headerlink" title="x86-64"></a>x86-64</h4><p>首先了解一下模拟器环境下对于不定参数函数传参的处理，查阅<a target="_blank" rel="noopener" href="https://software.intel.com/sites/default/files/article/402129/mpx-linux64-abi.pdf">System V Application Binary Interface: AMD64 Architecture Processor Supplement</a>：</p>
+<p>根据3.5.7 Variable Argument Lists部分可以了解到：变参列表的参数可能会同时使用寄存器和栈来传递，为了保证可移植性必须使用&lt;stdarg.h&gt;来处理变参列表，因此<code>va_list</code>被定义为一个结构体，当中包含了通过寄存器和栈传递参数的信息；</p>
+<p>根据3.2.3 Parameter Passing可以了解到：<strong>整形</strong>和<strong>指针</strong>是通过6个寄存器（%rdi, %rsi, %rdx, %rcx, %r8 and %r9）来传递的。</p>
+<p>因此模拟器环境下的代码，参数通过寄存器被正确传递。</p>
+<h4 id="ARM64"><a href="#ARM64" class="headerlink" title="ARM64"></a>ARM64</h4><p>查阅<a target="_blank" rel="noopener" href="http://infocenter.arm.com/help/topic/com.arm.doc.ihi0055b/IHI0055B_aapcs64.pdf">Procedure Call Standard for the ARM 64-bit Architecture (AArch64)</a>，参数传递规则在5.4 Parameter Passing部分：</p>
+<p>5.4.1 Variadic Subroutines部分介绍了不定参数函数，其参数分为两部分，<code>Named arguments</code>和<code>Anonymous arguments</code>；</p>
+<p>5.4.2 Parameter Passing Rules 部分中可以看到参数会依次经过StageC的15条规则决定分配，并没有对不定参数作特殊处理，既然如此那么参数传递也应如x86-64一样，传递的指针会先填满用于传参的寄存器后再通过栈传参，为什么实际情况却不是如此？</p>
+<p>考虑到平台相关的可能性，终于在苹果文档<a target="_blank" rel="noopener" href="https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html">iOS ABI Function Call Guide</a>中的<em>ARM64 Function Calling Conventions</em>小节找到了答案，这里提到了iOS上对于ARM和ARM64架构的ABI有一些不同之处。</p>
+<p>在“Divergences from the Generic Procedure Call Standard”部分的“Variadic Functions”说明了：</p>
+<blockquote>
+<p>The iOS ABI for functions that take a variable number of arguments is <strong>entirely different</strong> from the generic version. </p>
+<p>Stages A and B of the generic procedure call standard are performed as usual—in particular …… After that, the <strong>fixed arguments</strong> are allocated to registers and stack slots as usual in iOS.</p>
+<p>…… and <strong>each variadic argument is assigned to the appropriate number of 8-byte stack slots</strong></p>
+</blockquote>
+<p>iOS在参数传递时，与ARM64 ABI在Stage A和Stage B是一样的，但在Stage C却大相径庭。iOS只将固定部分的参数按照ABI处理，而变参则会依次压栈。</p>
+<p>因此，iOS平台的<code>va_list</code>实现也异常简单——就是<code>char *</code>类型，而不需要像x64定义一个复杂结构体。</p>
+<h4 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h4><p>至此，crash的问题终于有了结论：由于不同CPU体系结构——或者说是不同平台——导致的问题。</p>
+<p>在iOS设备上，通过IMP指针直接调用方法时，编译器按照调用不定参数函数的方式传递参数，除了前两个id和SEL参数，其他参数被作为变参列表压栈；被调方法的参数列表是固定的，编译器生成代码时则按照固定函数传参的方式获取实参。两边传参约定的不对称，导致被调方法获取到了错误的参数，引起了crash。如下图所示。</p>
+<p><img src="/images/arm64_args/conclusion.jpg"></p>
+<p>值得注意的是，在正确使用不定参数的情况下不会发生这个问题，<code>&lt;stdargs.h&gt;</code>会负责处理平台相关的问题。</p>
+<p>这也解答了上文中提到的编译器默认开启<em><strong>Enable Strict Checking of objc_msgSend Calls</strong></em>的原因。因此在创建新项目工程或库工程时，不应该关闭这个选项，同时在显式使用obj_msgSend或IMP指针时，请<strong>手动将obj_msgSend或IMP指针其强转成实际的函数类型</strong>以避免上述仅在真机中会出现的crash问题。</p>
+<p>© bersliu, 2018</p>
+
+  </div>
+</article>
+
+    <div class="blog-post-comments">
+        <div id="disqus_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+        
+          <li><a href="/">首页</a></li>
+        
+          <li><a href="/about/">关于</a></li>
+        
+          <li><a href="/archives/">归档</a></li>
+        
+          <li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li>
+        
+      </ul>
+    </div>
+
+    
+    
+      <div id="toc-footer" style="display: none">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BF%AB%E9%80%9F%E5%A4%8D%E4%B9%A0"><span class="toc-number">1.</span> <span class="toc-text">快速复习</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF"><span class="toc-number">2.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%9D%E6%AD%A5%E5%88%86%E6%9E%90"><span class="toc-number">3.</span> <span class="toc-text">初步分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81"><span class="toc-number">4.</span> <span class="toc-text">测试代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8F%92%E6%9B%B2"><span class="toc-number">4.1.</span> <span class="toc-text">插曲</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%811"><span class="toc-number">4.2.</span> <span class="toc-text">测试代码1</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A8%A1%E6%8B%9F%E5%99%A8%EF%BC%88x86-64"><span class="toc-number">4.2.1.</span> <span class="toc-text">模拟器（x86-64)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9C%9F%E6%9C%BA%EF%BC%88ARM64%EF%BC%89"><span class="toc-number">4.2.2.</span> <span class="toc-text">真机（ARM64）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%812"><span class="toc-number">4.3.</span> <span class="toc-text">测试代码2</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A8%A1%E6%8B%9F%E5%99%A8%EF%BC%88x86-64%EF%BC%89"><span class="toc-number">4.3.1.</span> <span class="toc-text">模拟器（x86-64）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9C%9F%E6%9C%BA%EF%BC%88ARM64%EF%BC%89-1"><span class="toc-number">4.3.2.</span> <span class="toc-text">真机（ARM64）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%813"><span class="toc-number">4.4.</span> <span class="toc-text">测试代码3</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9C%9F%E6%9C%BA%EF%BC%88ARM64%EF%BC%89-2"><span class="toc-number">4.4.1.</span> <span class="toc-text">真机（ARM64）</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E5%88%86%E6%9E%90%E4%B8%8E%E7%BB%93%E8%AE%BA"><span class="toc-number">5.</span> <span class="toc-text">问题分析与结论</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#RTFM"><span class="toc-number">5.1.</span> <span class="toc-text">RTFM</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#x86-64"><span class="toc-number">5.1.1.</span> <span class="toc-text">x86-64</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#ARM64"><span class="toc-number">5.1.2.</span> <span class="toc-text">ARM64</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E8%AE%BA"><span class="toc-number">5.1.3.</span> <span class="toc-text">结论</span></a></li></ol></li></ol></li></ol>
+      </div>
+    
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/arm64_varadic_args/"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/arm64_varadic_args/&text=ARM64不定函数传参分析"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/arm64_varadic_args/&is_video=false&description=ARM64不定函数传参分析"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=ARM64不定函数传参分析&body=Check out this article: http://bersl.github.io/arm64_varadic_args/"><i class="fa-solid fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/arm64_varadic_args/&title=ARM64不定函数传参分析"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/arm64_varadic_args/&name=ARM64不定函数传参分析&description="><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/arm64_varadic_args/&t=ARM64不定函数传参分析"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        
+          <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2023
+    Bers Liu
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script>
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script>
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板！\">";
+    btn += '<i class="fa-regular fa-clone"></i>';
+    btn += '</span>';
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功！");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Disqus Comments -->
+
+    <script type="text/javascript">
+        var disqus_shortname = 'bers-blog';
+
+        (function(){
+            var dsq = document.createElement('script');
+            dsq.type = 'text/javascript';
+            dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        }());
+    </script>
+
+<!-- utterances Comments -->
+
+</body>
+</html>

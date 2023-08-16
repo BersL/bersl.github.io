@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="前言作为Mac用户，每当水群的时候免疫别人撤回消息时总是感觉非常美滋滋，然而QQ For Mac 5.5.0版本更新之后支持撤回了，对于爱水群的我可以说是非常不爽了！于是自己动手，通过逆向QQ找到撤回消息的逻辑，搞定之。 寻找UI撤回方法初步思路是从UI入手，找到撤回消息时，界面部分用于撤回一条消息并显示提示信息被调用的方法。尝试搜索关键词“revoke”，果然看到了很多相关的方法： 上次逆向找Q">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MacQQ逆向之反撤回实现">
+<meta property="og:url" content="http://bersl.github.io/macqq_antirevoke/index.html">
+<meta property="og:site_name" content="Bers的个人博客">
+<meta property="og:description" content="前言作为Mac用户，每当水群的时候免疫别人撤回消息时总是感觉非常美滋滋，然而QQ For Mac 5.5.0版本更新之后支持撤回了，对于爱水群的我可以说是非常不爽了！于是自己动手，通过逆向QQ找到撤回消息的逻辑，搞定之。 寻找UI撤回方法初步思路是从UI入手，找到撤回消息时，界面部分用于撤回一条消息并显示提示信息被调用的方法。尝试搜索关键词“revoke”，果然看到了很多相关的方法： 上次逆向找Q">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://bersl.github.io/images/qqantirevoking/img1.jpg">
+<meta property="og:image" content="http://bersl.github.io/images/qqantirevoking/img2.jpg">
+<meta property="og:image" content="http://bersl.github.io/images/qqantirevoking/img3.jpg">
+<meta property="article:published_time" content="2017-04-04T19:27:07.000Z">
+<meta property="article:modified_time" content="2023-08-16T09:19:06.011Z">
+<meta property="article:author" content="Bers Liu">
+<meta property="article:tag" content="逆向">
+<meta property="article:tag" content="macOS">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://bersl.github.io/images/qqantirevoking/img1.jpg">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+        
+      
+    
+    <!-- title -->
+    <title>MacQQ逆向之反撤回实现</title>
+    <!-- async scripts -->
+    <!-- Google Analytics -->
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-167200849-1"></script>
+  <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'UA-167200849-1');
+  </script>
+
+
+    <!-- Umami Analytics -->
+
+
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="顶部" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fa-solid fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="上一篇" href="/arm64_varadic_args/"><i class="fa-solid fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="下一篇" href="/iosreverse_1/"><i class="fa-solid fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="返回顶部" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" aria-label="分享文章" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/macqq_antirevoke/"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/macqq_antirevoke/&text=MacQQ逆向之反撤回实现"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/macqq_antirevoke/&is_video=false&description=MacQQ逆向之反撤回实现"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=MacQQ逆向之反撤回实现&body=Check out this article: http://bersl.github.io/macqq_antirevoke/"><i class="fa-solid fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/macqq_antirevoke/&name=MacQQ逆向之反撤回实现&description="><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/macqq_antirevoke/&t=MacQQ逆向之反撤回实现"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    
+    
+      <div id="toc">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AF%BB%E6%89%BEUI%E6%92%A4%E5%9B%9E%E6%96%B9%E6%B3%95"><span class="toc-number">2.</span> <span class="toc-text">寻找UI撤回方法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%92%A4%E5%9B%9E%E6%8F%90%E9%86%92"><span class="toc-number">3.</span> <span class="toc-text">撤回提醒</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8F%90%E7%A4%BA%E6%92%A4%E5%9B%9E%E5%86%85%E5%AE%B9"><span class="toc-number">4.</span> <span class="toc-text">提示撤回内容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BF%9D%E7%95%99%E6%92%A4%E5%9B%9E%E8%81%8A%E5%A4%A9%E8%AE%B0%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">保留撤回聊天记录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B6%E4%BB%96"><span class="toc-number">6.</span> <span class="toc-text">其他</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">总结</span></a></li></ol>
+      </div>
+    
+  </span>
+</div>
+
+    
+    <div class="content index py4 ">
+        
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle p-name" itemprop="name headline">
+        MacQQ逆向之反撤回实现
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span class="p-name" itemprop="name">Bers Liu</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2017-04-04T19:27:07.000Z" class="dt-published" itemprop="datePublished">2017-04-05</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fa-solid fa-tag"></i>
+        <a class="p-category" href="/tags/macOS/" rel="tag">macOS</a>, <a class="p-category" href="/tags/%E9%80%86%E5%90%91/" rel="tag">逆向</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content e-content" itemprop="articleBody">
+    <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>作为Mac用户，每当水群的时候免疫别人撤回消息时总是感觉非常美滋滋，然而QQ For Mac 5.5.0版本更新之后支持撤回了，对于爱水群的我可以说是非常不爽了！于是自己动手，通过逆向QQ找到撤回消息的逻辑，搞定之。</p>
+<h2 id="寻找UI撤回方法"><a href="#寻找UI撤回方法" class="headerlink" title="寻找UI撤回方法"></a>寻找UI撤回方法</h2><p>初步思路是从UI入手，找到撤回消息时，界面部分用于撤回一条消息并显示提示信息被调用的方法。<br>尝试搜索关键词“revoke”，果然看到了很多相关的方法：<br><img src="/images/qqantirevoking/img1.jpg"></p>
+<p>上次逆向找QQ发送消息的方法时，知道了聊天界面的ViewController类是<code>MQAIOChatViewController</code>，revoke相关方法中该类仅有一个<code> -[MQAIOChatViewController revokeMessages:]</code>，故猜测这个就是UI用于撤回消息的方法，用lldb附加到QQ上，给这个方法打上断点，尝试撤回一条消息，断点命中<br><img src="/images/qqantirevoking/img2.jpg"></p>
+<p>在调试器中尝试执行<code>thread return</code>并继续程序流程，消息撤回成功地被block了，看起来，只需要编写动态库hook这个方法，直接return，反撤回就这么实现了，跟更新之前一样。</p>
+<h2 id="撤回提醒"><a href="#撤回提醒" class="headerlink" title="撤回提醒"></a>撤回提醒</h2><p>如果只是这样，也太简单了点，既然QQ已经能处理消息撤回了，要是能既能block掉撤回，又能在被撤回的消息旁边显示一个标记，好知道这条消息被撤回了就好了，看起来也不是很麻烦，既然UI处理撤回都是发生在<code>-[MQAIOChatViewController revokeMessages:]</code>方法里，那就先阅读以下这个方法的实现。</p>
+<p>阅读代码并动态调试打印对象的类名，可以分析得到该方法实现的主要部分大致如下：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)revokeMessages:(<span class="type">id</span>&lt;<span class="built_in">NSFastEnumeration</span>&gt;)msgList &#123;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">	<span class="keyword">for</span> (BHMessageModel *msg <span class="keyword">in</span> msgList) &#123;</span><br><span class="line">		MQAIOTopViewController *topVC = [<span class="keyword">self</span> topMsgListViewController];</span><br><span class="line">		MQAIOMessageViewModel *viewModel = [topVC getViewModelByMsgModel:msg];</span><br><span class="line">		<span class="keyword">if</span> (viewModel) &#123;</span><br><span class="line">			[viewModel setMsgModel:msg];</span><br><span class="line">			[<span class="keyword">self</span> refreshViewModel:viewModel];</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>方法中topVC的类名是<code>MQAIOTopViewController</code>, 打印它的view的视图层级, 通过各种show&#x2F;hide view, 可以得到显示聊天记录的view是<code>TXTopTextView</code>，阅读其头文件可以发现它是一个<code>NSTextView</code>，并非我一开始以为的<code>NSTableView</code>（后来发现这个跟<code>UIKit</code>上的<code>UITableView</code>差别好像还是挺大的），这样看来要额外添加view来标记有些麻烦，所以转而寻找如何防止撤回的同时还能显示撤回原来的提示的方法。</p>
+<p>通过阅读<code>MQAIOTopViewController</code>的头文件(使用class-dump导出)，可以找到一个方法<code>- (void)appendMessage:(id)arg1;</code>，猜想可以通过它来添加那条提示，但是不知道这个方法需要的参数是什么，所以同样需要阅读这个方法的代码。</p>
+<p>阅读代码可以得到方法实现的逻辑是通过参数（BHMessageModel对象）构造<code>MQAIOMessageViewModel</code>(实际上是它的子类)对象（包括另一个显示时间的对象，如果需要显示）, 通过调用<code>- [MQAIOTopViewController viewModelList]</code>将构造的对象加入其中，最后刷新textView。</p>
+<p>结合以上两个方法的实现，可以整理出如下信息：<br><code>MQAIOTopViewController</code>即为聊天界面中显示记录的VC，界面中每一行(除了头像)，包括聊天记录、时间、提示信息等都对应一个<code>MQAIOMessageViewModel</code>对象，它含有一个数据model，即<code>BHMessageModel</code>对象，消息的撤回实际上是把对应ViewModel的数据model修改为已经被标记为一条撤回消息的msgModel，然后刷新显示。</p>
+<p>于是，根据整理出来的信息，可以编写如下代码：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)my_revokeMessage:(<span class="type">id</span>&lt;<span class="built_in">NSFastEnumeration</span>&gt;)messages &#123;</span><br><span class="line">    <span class="type">id</span> topVC = [<span class="keyword">self</span> topMsgListViewController];</span><br><span class="line">    <span class="keyword">for</span> (BHMessageModel *msg <span class="keyword">in</span> messages) &#123;</span><br><span class="line">    	[topVC appendMessage:msg];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>编写动态库，hook方法<code>-[MQAIOChatViewController revokeMessages:]</code>替换为自己的实现，注入到QQ中，成功实现了阻止消息撤回并保留显示原来那条撤回提示信息。</p>
+<h2 id="提示撤回内容"><a href="#提示撤回内容" class="headerlink" title="提示撤回内容"></a>提示撤回内容</h2><p>以上实现只能显示<code>XXX 撤回了一条消息</code>，并不能提示消息的内容，撤回的消息跟原来的消息混在一块不好辨别，所以这里还需要实现在撤回提示中显示所撤回的具体消息。<br>阅读<code>BHMessageModel</code>类的头文件，可以看到很多与“content”相关的文本字符串，其中有一个<code>textContent</code>似乎就是消息的内容。于是，遍历一个聊天界面的viewModelList，打印查看一些消息的textContent属性，猜想得到了印证，但是对于撤回消息的textContent内容却还是“XXX 撤回了一条消息”，查看<code>-[BHMessageModel textContent]</code>的实现，可以看到对于常规信息而言就是返回的实例变量<code>_smallContent</code>，所以后续直接操纵这个实例变量来设置消息内容。</p>
+<p>综上，因为UI撤回消息的实现里是一个替换msgModel的过程，所以直接取原来msgModel中的content就好了，实现如下：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)my_revokeMessage:(<span class="type">id</span>&lt;<span class="built_in">NSFastEnumeration</span>&gt;)messages &#123;</span><br><span class="line">    <span class="type">id</span> topVC = [<span class="keyword">self</span> topMsgListViewController];</span><br><span class="line">    <span class="keyword">for</span> (BHMessageModel *msg <span class="keyword">in</span> messages) &#123;</span><br><span class="line">    	MQAIOMessageViewModel *viewModel = [topVC getViewModelByMsgModel:msg];</span><br><span class="line">		<span class="keyword">if</span> (viewModel) &#123;</span><br><span class="line">			<span class="built_in">NSString</span> *content = [[viewModel msgModel] smallContent];</span><br><span class="line">			<span class="built_in">NSLog</span>(<span class="string">@&quot;--- Revoke content: %@&quot;</span>, content);</span><br><span class="line">			<span class="built_in">NSString</span> *revokePrompt = [<span class="built_in">NSStirng</span> stringWithFormat:<span class="string">@&quot;%@ 撤回了: %@&quot;</span>, [msg nickname] , content];</span><br><span class="line">			[msg setSmallContent:content];</span><br><span class="line">		&#125;</span><br><span class="line">    	[topVC appendMessage:msg];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>然而，这次并没有那么顺利，界面的提示消息仍然是<code>XXX 撤回了一条消息</code>, 但是Log信息确是被撤回的那条消息的内容，所以对于被撤回的消息，显示时应该并没有用到content属性。</p>
+<p>这次直接从显示消息的view来入手，经过一番摸索，找到了显示提示信息时调用的<code> -[MQAIOTipViewModel outputMessageWithInformativeText:time:chatUIStyle:background:]</code>方法，断点，打印其堆栈信息，从上层调用方法中可以阅读到，传入给该方法显示的text参数是通过<code>-[MQInfoMessageViewModel getInfomativeMsgContent:]</code>方法获取的，于是这里hook一下这个方法的实现：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">id</span>)my_getInfomativeMsgContent:(<span class="type">id</span>)arg1 &#123;</span><br><span class="line">    <span class="type">int</span> type = [arg1 msgType];</span><br><span class="line">    <span class="keyword">if</span>(type == <span class="number">0x14c</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> [arg1 smallContent];</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> [<span class="keyword">self</span> my_getInfomativeMsgContent:arg1];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>其中msgType为消息类型，0x14c为撤回消息，这是之前遍历viewModelList验证得到的。<br>编译，再次尝试，这次成功地实现了撤回消息并提示撤回的内容的功能。</p>
+<h2 id="保留撤回聊天记录"><a href="#保留撤回聊天记录" class="headerlink" title="保留撤回聊天记录"></a>保留撤回聊天记录</h2><p>前面的尝试忽略了一个重点，全都是在UI层面上进行的操作，这就意味着数据库中的聊天记录还是被标记为撤回，退出QQ后，重新加载的聊天记录果然没有了撤回的消息。<br>于是，初步的想法是截获撤回的Notification，阻止它调用更新数据库的方法。<br>打印<code>-[MQAIOChatViewController revokeMessages:]</code>调用时的堆栈信息，可以看到如下调用链：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">* thread #1: tid = 0xaa765, 0x000000010a9dfd7c QQ`-[MQAIOChatViewController revokeMessages:], queue = &#x27;com.apple.main-thread&#x27;, stop reason = breakpoint 2.1</span><br><span class="line">  * frame #0: 0x000000010a9dfd7c QQ`-[MQAIOChatViewController revokeMessages:]</span><br><span class="line">    frame #1: 0x000000010a9dc6ce QQ`___lldb_unnamed_symbol1762$$QQ + 59</span><br><span class="line">    frame #2: 0x000000010aed060a QQ`___lldb_unnamed_symbol17209$$QQ + 75</span><br><span class="line">    // ......</span><br></pre></td></tr></table></figure>
+<p>该方法上两层的调用者没有符号信息，于是直接取地址，减去QQ的ASLR偏移后可以在Hopper中跳转到，均是在<code>-[BHMessageChatModel revokeMessageModel:]</code>中调用的block，对这个方法加断点，得到的堆栈信息如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">* thread #3: tid = 0xaa7dd, 0x000000010aecff5a QQ`-[BHMessageChatModel revokeMessageModel:], name = &#x27;msfsafethread&#x27;, stop reason = breakpoint 1.1</span><br><span class="line">  * frame #0: 0x000000010aecff5a QQ`-[BHMessageChatModel revokeMessageModel:]</span><br><span class="line">    frame #1: 0x000000010af27911 QQ`-[RecallProcessor solveRecallNotify:isOnline:] + 1451</span><br><span class="line">    frame #2: 0x000000010abd4d13 QQ`-[QQMessageRevokeEngine handleRecallNotify:isOnline:] + 99</span><br><span class="line">    frame #3: 0x000000010ae857dc QQ`+[RevokePushHandler handleOnlinePushMsgType0x210:DataLen:msgSubType:] + 684</span><br><span class="line">    frame #4: 0x000000010afcb7de QQ`-[QQOnlineMsgHandle handle0x210MsgInfo:msgType0x210:msg:] + 1039</span><br><span class="line">    frame #5: 0x000000010afcaf53 QQ`-[QQOnlineMsgHandle didReqPushMsg:msg:seqId:requestId:toUin:] + 664</span><br><span class="line">    frame #6: 0x000000010afcabe9 QQ`-[QQOnlineMsgHandle didRecievedMsg:] + 464</span><br><span class="line">    // ......</span><br></pre></td></tr></table></figure>
+<p>看到notify关键字，推测撤回的消息就是在这些上层方法中分发的，于是依次尝试，首先对<code>-[BHMessageChatModel revokeMessageModel:]</code>设置断点，执行<code>thread return</code>直接跳过，重启QQ，撤回的消息记录成功被保留，所以直接阅读这个方法的实现即可找到办法。</p>
+<p>方法很长，还包括有<code>punpcklqdq</code>这样奇怪的指令，暂且跳过，注意到一连串的selector被压栈用作后续调用，如下：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">var_A0 = <span class="keyword">@selector</span>(unsignedLongLongValue);</span><br><span class="line">var_A8 = <span class="keyword">@selector</span>(getMessageWithUin:sessType:identityUin:msgSeq:time:random:);</span><br><span class="line">var_C8 = <span class="keyword">@selector</span>(insertRecallMsg:item:msgType:);</span><br><span class="line">var_C0 = <span class="keyword">@selector</span>(msgType);</span><br><span class="line">var_D0 = <span class="keyword">@selector</span>(getRecallMessageContent:);</span><br><span class="line">var_D8 = <span class="keyword">@selector</span>(setSmallContent:);</span><br><span class="line">var_E0 = <span class="keyword">@selector</span>(setMsgType:);</span><br><span class="line">var_E8 = <span class="keyword">@selector</span>(arrayWithObjects:count:);</span><br><span class="line">var_108 = <span class="keyword">@selector</span>(updateQQMessageModel:keyArray:);</span><br><span class="line">var_B0 = <span class="keyword">@selector</span>(deleteMessage:containLargeMsg:);</span><br></pre></td></tr></table></figure>
+<p>凭这些方法名以及后续出现的<code>MsgDbService</code>看似跟数据库相关的类，可以推测应该是通过<code>@selector(getMessageWithUin:sessType:identityUin:msgSeq:time:random:)</code>拿到了msgModel，处理后保存到数据库。</p>
+<p>继续阅读，找到了更改msgModel的关键部分，实现逻辑如下：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)solveRecallNotify:(<span class="keyword">struct</span> RecallModel *)arg1 isOnline:(<span class="type">BOOL</span>)arg2 &#123;</span><br><span class="line">	<span class="comment">// ......</span></span><br><span class="line">	<span class="type">id</span> msgModel = [[MsgDbService sharedInstance] </span><br><span class="line">		getMessageWithUin:sessType:identityUin:msgSeq:time:random:]; <span class="comment">// 参数未知</span></span><br><span class="line">	<span class="keyword">if</span> (msgModel &amp;&amp; [msgModel msgType] != <span class="number">0x14c</span>) &#123;</span><br><span class="line">		[msgModel setSmallContent: [<span class="keyword">self</span> getRecallMessageContent:arg1]];</span><br><span class="line">		[msgModel setMsgType: <span class="number">0x14c</span>];</span><br><span class="line">		[[MsgDbService sharedInstance] updateQQMessageModel:msgModel keyArray:]; <span class="comment">// 参数未知</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// ......</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>逻辑很明了，根据第一个参数取出msgModel，如果消息类型不是撤回则更改消息的内容和type并更新数据库，为了验证猜想，在上述逻辑中的判断消息类型是否为0x14c的跳转指令处加断点，直接跳到后续指令执行，验证了猜想。</p>
+<p>可是，如果直接更改上述指令，把je修改为jmp，这样实现就几乎没有了后续版本的兼容性，每次更新版本都要更改可执行文件，所以还是寻求更干净一些的方法，既然已经知道了更新数据库的方法，那就hook这个方法，先把撤回消息的msgType改为0x14c，再执行后更改为原来的msgType即可。</p>
+<p>这样，最棘手的问题便是找到传递给那几个关键方法的参数。<br>阅读指令，可以看到<code>-[MsgDbService getMessageWithUin:sessType:identityUin:msgSeq:time:random:];</code>的参数基本上是从结构体指针arg1获取的，结合代码并动态调试读取内存，过程比较繁琐，不在此赘述，可以还原出这个结构体需要的部分：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">Info</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">        <span class="type">int32_t</span> time, msgSeq, random;</span><br><span class="line">    &#125; *info;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">RecallModel</span> &#123;</span></span><br><span class="line">    <span class="type">uint64_t</span> unknown1;</span><br><span class="line">    <span class="type">uint32_t</span> sesstype, unknown2;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">Info</span> *<span class="title">addr</span>, *<span class="title">addr2</span>;</span></span><br><span class="line">    <span class="type">uint64_t</span> unknown3, unknown4;</span><br><span class="line">    <span class="type">long</span> <span class="type">long</span> uin, groupUin;</span><br><span class="line">    <span class="comment">// maybe more</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<p>剩下的就是<code>-[MsgDbService updateQQMessageModel:keyArray:]</code>参数，这就不得不往前看了，从手册中找到<code>punpcklqdq xmm1, xmm2</code>指令的作用是把xmm2寄存器的低64位移到xmm1寄存器的高64位中，方法中是把指向”type”和”content”两个字符串的指针放到一个128位寄存器后入栈，后续取出以后构造一个NSArray作为参数传给前述方法，结合该方法的实现，可以知道这是把传入的第一个msgModel参数中要更新的属性对应数据库表结构的键值传入。</p>
+<p>（Orz这一部分各种读指令还包括了中间两个隐藏的过程，简直累趴）</p>
+<p>整理前述思路，代码实现如下：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)my_solveRecallNotify:(<span class="keyword">struct</span> RecallModel *)arg1 isOnline:(<span class="type">BOOL</span>)arg2 &#123;</span><br><span class="line">    <span class="type">int</span> original_type = <span class="number">0x400</span>;</span><br><span class="line">    <span class="keyword">if</span> (arg1-&gt;addr != arg1-&gt;addr2) &#123;</span><br><span class="line">        MsgDbService *db = [objc_getClass(<span class="string">&quot;MsgDbService&quot;</span>) sharedInstance];</span><br><span class="line">        <span class="built_in">NSString</span> *identityUin = [[objc_getClass(<span class="string">&quot;QQDataCenter&quot;</span>) GetInstance] uin];</span><br><span class="line">        <span class="type">int</span> sesstype = (uint32_t)arg1-&gt;sesstype;</span><br><span class="line">        <span class="type">id</span> model = [db getMessageWithUin:(sesstype == <span class="number">0x65</span> || sesstype == <span class="number">0xc9</span>) ? arg1-&gt;groupUin : arg1-&gt;uin</span><br><span class="line">                                sessType:sesstype</span><br><span class="line">                             identityUin:[identityUin unsignedLongLongValue]</span><br><span class="line">                                  msgSeq:arg1-&gt;addr-&gt;info-&gt;msgSeq</span><br><span class="line">                                    time:arg1-&gt;addr-&gt;info-&gt;time</span><br><span class="line">                                  random:arg1-&gt;addr-&gt;info-&gt;random];</span><br><span class="line">        original_type = [model msgType];</span><br><span class="line">        [model setMsgType:<span class="number">0x14c</span>];</span><br><span class="line">        <span class="built_in">NSString</span> *keys[] = &#123;<span class="string">@&quot;type&quot;</span>&#125;;</span><br><span class="line">        <span class="built_in">NSArray</span> *keyArray = [<span class="built_in">NSArray</span> arrayWithObjects:keys count:<span class="number">1</span>];</span><br><span class="line">        [db updateQQMessageModel:model keyArray:keyArray];</span><br><span class="line">    &#125;</span><br><span class="line">    [<span class="keyword">self</span> my_solveRecallNotify:arg1 isOnline:arg2];</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (arg1-&gt;addr != arg1-&gt;addr2) &#123;</span><br><span class="line">        MsgDbService *db = [objc_getClass(<span class="string">&quot;MsgDbService&quot;</span>) sharedInstance];</span><br><span class="line">        <span class="built_in">NSString</span> *uin = [[objc_getClass(<span class="string">&quot;QQDataCenter&quot;</span>) GetInstance] uin];</span><br><span class="line">        <span class="type">int</span> sesstype = (uint32_t)arg1-&gt;sesstype;</span><br><span class="line">        <span class="type">id</span> model = [db getMessageWithUin:(sesstype == <span class="number">0x65</span> || sesstype == <span class="number">0xc9</span>) ? arg1-&gt;groupUin : arg1-&gt;uin</span><br><span class="line">                                sessType:sesstype</span><br><span class="line">                             identityUin:[uin unsignedLongLongValue]</span><br><span class="line">                                  msgSeq:arg1-&gt;addr-&gt;info-&gt;msgSeq</span><br><span class="line">                                    time:arg1-&gt;addr-&gt;info-&gt;time</span><br><span class="line">                                  random:arg1-&gt;addr-&gt;info-&gt;random];</span><br><span class="line">        [model setMsgType:original_type];</span><br><span class="line">        <span class="built_in">NSString</span> *keys[] = &#123;<span class="string">@&quot;type&quot;</span>&#125;;</span><br><span class="line">        <span class="built_in">NSArray</span> *keyArray = [<span class="built_in">NSArray</span> arrayWithObjects:keys count:<span class="number">1</span>];</span><br><span class="line">        [db updateQQMessageModel:model keyArray:keyArray];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><p>到这里已经把需要的功能实现了，还需要的细节是撤回显示内容的优化，包括图文混合消息处理、撤回消息类型显示等，这里主要通过解析smallContent中的JSON字符串实现。<br>还有一个小细节是为了避免撤回已经撤回过的消息，需要做一下判断，查看<code>BHMessageModel</code>的头文件可以看到有一个exInfo属性的类包含有dictionary，可以存放额外信息，由上个部分可以知道要在数据库中保存，需要找到这个属性对应的key，从代码中找到了SQLite查询语句的构造字符串，可以得到key<code>exInfo</code>。<br>具体的查找和验证过程也不在此做过多说明，随后，只需要在<code>+[RevokeHelper supportRevokeMessage:]</code>做一下判断即可，具体代码如下：</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">+ (<span class="type">BOOL</span>)my_supportRevokeMessage:(<span class="type">id</span>)arg1 &#123;</span><br><span class="line">    <span class="keyword">if</span> ([[arg1 exInfo] stringValueForKey:kMessageHasRevoked]) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NO</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> [objc_getClass(<span class="string">&quot;RevokeHelper&quot;</span>) my_supportRevokeMessage:arg1];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>编写好代码后，编译成动态库，放到QQ的Bundle下，使用insert_dylib修改可执行文件即可，最终实现效果如图：<br><img src="/images/qqantirevoking/img3.jpg"></p>
+<p>后续版本只要撤回逻辑不变，也只需要执行上述步骤即可，最终代码实现详见我的GitHub。</p>
+
+  </div>
+</article>
+
+    <div class="blog-post-comments">
+        <div id="disqus_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+        
+          <li><a href="/">首页</a></li>
+        
+          <li><a href="/about/">关于</a></li>
+        
+          <li><a href="/archives/">归档</a></li>
+        
+          <li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li>
+        
+      </ul>
+    </div>
+
+    
+    
+      <div id="toc-footer" style="display: none">
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AF%BB%E6%89%BEUI%E6%92%A4%E5%9B%9E%E6%96%B9%E6%B3%95"><span class="toc-number">2.</span> <span class="toc-text">寻找UI撤回方法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%92%A4%E5%9B%9E%E6%8F%90%E9%86%92"><span class="toc-number">3.</span> <span class="toc-text">撤回提醒</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8F%90%E7%A4%BA%E6%92%A4%E5%9B%9E%E5%86%85%E5%AE%B9"><span class="toc-number">4.</span> <span class="toc-text">提示撤回内容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BF%9D%E7%95%99%E6%92%A4%E5%9B%9E%E8%81%8A%E5%A4%A9%E8%AE%B0%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">保留撤回聊天记录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B6%E4%BB%96"><span class="toc-number">6.</span> <span class="toc-text">其他</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">总结</span></a></li></ol>
+      </div>
+    
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=http://bersl.github.io/macqq_antirevoke/"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=http://bersl.github.io/macqq_antirevoke/&text=MacQQ逆向之反撤回实现"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=http://bersl.github.io/macqq_antirevoke/&is_video=false&description=MacQQ逆向之反撤回实现"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=MacQQ逆向之反撤回实现&body=Check out this article: http://bersl.github.io/macqq_antirevoke/"><i class="fa-solid fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=http://bersl.github.io/macqq_antirevoke/&title=MacQQ逆向之反撤回实现"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=http://bersl.github.io/macqq_antirevoke/&name=MacQQ逆向之反撤回实现&description="><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=http://bersl.github.io/macqq_antirevoke/&t=MacQQ逆向之反撤回实现"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        
+          <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2023
+    Bers Liu
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+        <!--
+       --><li><a href="/">首页</a></li><!--
+     --><!--
+       --><li><a href="/about/">关于</a></li><!--
+     --><!--
+       --><li><a href="/archives/">归档</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/bersl">项目</a></li><!--
+     -->
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script>
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script>
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板！\">";
+    btn += '<i class="fa-regular fa-clone"></i>';
+    btn += '</span>';
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功！");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Disqus Comments -->
+
+    <script type="text/javascript">
+        var disqus_shortname = 'bers-blog';
+
+        (function(){
+            var dsq = document.createElement('script');
+            dsq.type = 'text/javascript';
+            dsq.async = true;
+            dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        }());
+    </script>
+
+<!-- utterances Comments -->
+
+</body>
+</html>
